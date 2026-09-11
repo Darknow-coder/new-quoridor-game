@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Quoridor 4 — V1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ==================== MENU PRINCIPAL ==================== -->
+  <section id="main-menu">
+    <div class="menu-deco menu-deco-1"></div>
+    <div class="menu-deco menu-deco-2"></div>
+
+    <div class="menu-brand">
+      <div class="menu-mini-board" aria-hidden="true">
+        <span></span><span></span><span></span>
+        <span></span><b></b><span></span>
+        <span></span><span></span><span></span>
+      </div>
+      <p class="menu-kicker">JEU DE STRATÉGIE • 4 JOUEURS</p>
+      <h1>Quoridor <strong>4</strong></h1>
+      <p class="menu-subtitle">Atteins ton objectif. Bloque tes adversaires.</p>
+    </div>
+
+    <div class="menu-profile" id="menu-profile-btn" title="Voir la Route des Trophées">
+      <div class="menu-profile-left">
+        <div class="menu-avatar">●</div>
+        <div>
+          <div class="menu-profile-name">Toi</div>
+          <div class="menu-profile-label" id="menu-profile-rank">🪨 Bronze</div>
+          <div class="menu-profile-difficulty" id="menu-profile-difficulty">🟡 Normale</div>
+        </div>
+      </div>
+      <div class="menu-currencies">
+        <div class="menu-trophies">
+          <span>🏆</span>
+          <strong id="menu-trophy-count">0</strong>
+        </div>
+        <div class="menu-coins">
+          <span>🪙</span>
+          <strong id="menu-coin-count">0</strong>
+        </div>
+      </div>
+    </div>
+
+    <button id="menu-play-btn" class="menu-primary-btn">
+      <span>🎮</span>
+      <span>JOUER</span>
+      <span class="menu-btn-arrow">›</span>
+    </button>
+
+    <button id="menu-shop-btn" class="menu-shop-btn">
+      <span class="menu-card-icon">🛍️</span>
+      <span>Boutique</span>
+    </button>
+
+    <div class="menu-grid">
+      <button id="menu-trophies-btn" class="menu-card-btn">
+        <span class="menu-card-icon">🏆</span>
+        <span>Route</span>
+      </button>
+      <button id="menu-achievements-btn" class="menu-card-btn">
+        <span class="menu-card-icon">🏅</span>
+        <span>Succès</span>
+      </button>
+      <button id="menu-stats-btn" class="menu-card-btn">
+        <span class="menu-card-icon">📊</span>
+        <span>Statistiques</span>
+      </button>
+      <button id="menu-tutorial-btn" class="menu-card-btn">
+        <span class="menu-card-icon">❓</span>
+        <span>Tutoriel</span>
+      </button>
+      <button id="menu-settings-btn" class="menu-card-btn">
+        <span class="menu-card-icon">⚙️</span>
+        <span>Paramètres</span>
+      </button>
+    </div>
+
+    <p class="menu-version">V1 • Solo contre 3 bots</p>
+  </section>
+
+  <!-- ==================== PANELS DU MENU ==================== -->
+  <div id="menu-panel" class="menu-overlay hidden">
+    <div class="menu-panel-content">
+      <button id="menu-panel-close" class="panel-close-btn" aria-label="Fermer">×</button>
+      <div id="menu-panel-body"></div>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+
+    <!-- Barre du haut : monnaies, titre, bouton recommencer -->
+    <header id="top-bar">
+      <div class="top-currencies">
+        <div id="trophy-display" title="Tes trophées">
+          <span id="trophy-icon">🏆</span>
+          <span id="trophy-count">0</span>
+        </div>
+        <div id="coin-display" title="Tes Jetons">
+          <span id="coin-icon">🪙</span>
+          <span id="coin-count">0</span>
+        </div>
+      </div>
+      <h1 id="game-title">Quoridor 4</h1>
+      <button id="restart-btn" class="icon-btn" title="Recommencer une partie">⟳</button>
+    </header>
+
+    <!-- Petites fiches des 4 joueurs : couleur, nom, barrières restantes -->
+    <div id="players-hud"></div>
+
+    <!-- Indique à qui c'est le tour -->
+    <div id="turn-indicator">
+      <span id="turn-dot"></span>
+      <span id="turn-text">C'est ton tour</span>
+    </div>
+
+    <!-- Le plateau de jeu est construit dynamiquement en JavaScript. -->
+    <div id="board-wrapper">
+      <div id="board-frame">
+        <div class="goal-bar goal-top" title="Objectif de Toi">▲</div>
+        <div class="goal-bar goal-left" title="Objectif de Bot 3">◀</div>
+        <div id="board"></div>
+        <div class="goal-bar goal-right" title="Objectif de Bot 2">▶</div>
+        <div class="goal-bar goal-bottom" title="Objectif de Bot 1">▼</div>
+      </div>
+    </div>
+
+    <!-- Contrôles du joueur humain -->
+    <div id="controls">
+      <div id="mode-buttons">
+        <button id="mode-move-btn" class="mode-btn active">🚶 Déplacer</button>
+        <button id="mode-wall-btn" class="mode-btn">🧱 Barrière</button>
+      </div>
+      <div id="wall-orientation" class="hidden">
+        <button id="orientation-h-btn" class="orient-btn active">▬ Horizontale</button>
+        <button id="orientation-v-btn" class="orient-btn">▮ Verticale</button>
+      </div>
+      <button id="forfeit-btn" class="text-btn">Abandonner la partie</button>
+    </div>
+
+    <!-- Petits messages d'information ("mur invalide", etc.) -->
+    <div id="message-bar"></div>
+
+  </div>
+
+  <!-- Modale affichée à la fin d'une partie -->
+  <div id="end-modal" class="hidden">
+    <div class="modal-content">
+      <h2 id="end-title">Victoire !</h2>
+      <p id="end-text"></p>
+      <div class="end-rewards">
+        <div id="trophy-change" class="reward-item"></div>
+        <div id="coin-change" class="reward-item"></div>
+      </div>
+      <div class="end-actions">
+        <button id="play-again-btn">Rejouer</button>
+        <button id="main-menu-btn" class="secondary-modal-btn">Menu principal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale de montée de rang -->
+  <div id="rank-up-modal" class="hidden">
+    <div class="modal-content rank-up-content">
+      <h3 class="rank-up-title">🎉 NOUVEAU RANG !</h3>
+      <div id="rank-up-icon" class="rank-big-icon">🥇</div>
+      <div id="rank-up-name" class="rank-big-name">OR</div>
+      <button id="rank-up-close-btn" class="rank-up-btn">SUPER !</button>
+    </div>
+  </div>
+
+  <!-- Conteneur des notifications de succès débloqués -->
+  <div id="achievement-toast-container" aria-live="polite"></div>
+
+  <script src="game.js"></script>
+</body>
+</html>
