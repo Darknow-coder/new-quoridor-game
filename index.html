@@ -21,7 +21,7 @@
         <span></span><b></b><span></span>
         <span></span><span></span><span></span>
       </div>
-      <p class="menu-kicker">JEU DE STRATÉGIE • 4 JOUEURS</p>
+      <p class="menu-kicker">JEU DE STRATÉGIE • 2 À 5 JOUEURS</p>
       <h1>Quoridor <strong>4</strong></h1>
       <p class="menu-subtitle">Atteins ton objectif. Bloque tes adversaires.</p>
     </div>
@@ -53,19 +53,25 @@
       <span class="menu-btn-arrow">›</span>
     </button>
 
-    <button id="menu-shop-btn" class="menu-shop-btn">
-      <span class="menu-card-icon">🛍️</span>
-      <span>Boutique</span>
-    </button>
+    <div class="menu-special-buttons">
+      <button id="menu-shop-btn" class="menu-shop-btn">
+        <span class="menu-card-icon">🛍️</span>
+        <span>Boutique</span>
+      </button>
+      <button id="menu-cards-btn" class="menu-shop-btn menu-cards-menu-btn">
+        <span class="menu-card-icon">🃏</span>
+        <span>Cartes</span>
+      </button>
+    </div>
 
     <div class="menu-grid">
+      <button id="menu-game-modes-btn" class="menu-card-btn">
+        <span class="menu-card-icon">🎯</span>
+        <span>Modes de jeu</span>
+      </button>
       <button id="menu-trophies-btn" class="menu-card-btn">
         <span class="menu-card-icon">🏆</span>
         <span>Route</span>
-      </button>
-      <button id="menu-achievements-btn" class="menu-card-btn">
-        <span class="menu-card-icon">🏅</span>
-        <span>Succès</span>
       </button>
       <button id="menu-stats-btn" class="menu-card-btn">
         <span class="menu-card-icon">📊</span>
@@ -81,10 +87,26 @@
       </button>
     </div>
 
-    <p class="menu-version">V1 • Solo contre 3 bots</p>
+    <p class="menu-version">V3 • Modes classiques + Mode Chaos</p>
   </section>
 
   <!-- ==================== PANELS DU MENU ==================== -->
+  <div id="pack-opening-overlay" class="pack-opening-overlay hidden" aria-hidden="true">
+    <div class="pack-opening-backdrop"></div>
+    <div class="pack-opening-modal" role="dialog" aria-modal="true" aria-label="Ouverture du pack">
+      <div class="pack-opening-title">🎁 PACK DE CARTES</div>
+      <div class="pack-opening-subtitle" id="pack-opening-subtitle">Clique sur le pack pour l’ouvrir</div>
+      <div class="pack-visual" id="pack-visual">
+        <div class="pack-glow"></div>
+        <div class="pack-shine"></div>
+        <div class="pack-emoji">🎁</div>
+        <div class="pack-label">PACK</div>
+      </div>
+      <div class="pack-reveal-stage" id="pack-reveal-stage"></div>
+      <button id="pack-opening-close" class="pack-opening-close hidden">CONTINUER</button>
+    </div>
+  </div>
+
   <div id="menu-panel" class="menu-overlay hidden">
     <div class="menu-panel-content">
       <button id="menu-panel-close" class="panel-close-btn" aria-label="Fermer">×</button>
@@ -119,14 +141,29 @@
       <span id="turn-text">C'est ton tour</span>
     </div>
 
+    <!-- Main de cartes du joueur : remplie dynamiquement en JavaScript. -->
+    <div id="card-bar" aria-label="Cartes disponibles"></div>
+
+    <!-- Emotes rapides équipées -->
+    <div id="emote-bar" aria-label="Emotes équipées"></div>
+
     <!-- Le plateau de jeu est construit dynamiquement en JavaScript. -->
     <div id="board-wrapper">
       <div id="board-frame">
-        <div class="goal-bar goal-top" title="Objectif de Toi">▲</div>
-        <div class="goal-bar goal-left" title="Objectif de Bot 3">◀</div>
+        <div class="goal-bar goal-top" id="goal-bar-top" title="Objectif Haut">▲</div>
+        <div class="goal-bar goal-left" id="goal-bar-left" title="Objectif Gauche">◀</div>
         <div id="board"></div>
-        <div class="goal-bar goal-right" title="Objectif de Bot 2">▶</div>
-        <div class="goal-bar goal-bottom" title="Objectif de Bot 1">▼</div>
+        <div class="goal-corner goal-corner-br" id="goal-corner-br" title="Objectif du Bot 4">◆</div>
+        <div class="goal-bar goal-right" id="goal-bar-right" title="Objectif Droite">▶</div>
+        <div class="goal-bar goal-bottom" id="goal-bar-bottom" title="Objectif Bas">▼</div>
+
+        <!-- Objectifs spécifiques au plateau pentagonal (mode 5 joueurs) -->
+        <div class="pent-goal pent-goal-0" id="pent-goal-0">◆</div>
+        <div class="pent-goal pent-goal-1" id="pent-goal-1">◆</div>
+        <div class="pent-goal pent-goal-2" id="pent-goal-2">◆</div>
+        <div class="pent-goal pent-goal-3" id="pent-goal-3">◆</div>
+        <div class="pent-goal pent-goal-4" id="pent-goal-4">◆</div>
+        <div class="pent-goal-label" id="pent-goal-label">🎯 Ton objectif</div>
       </div>
     </div>
 
@@ -173,9 +210,6 @@
       <button id="rank-up-close-btn" class="rank-up-btn">SUPER !</button>
     </div>
   </div>
-
-  <!-- Conteneur des notifications de succès débloqués -->
-  <div id="achievement-toast-container" aria-live="polite"></div>
 
   <script src="game.js"></script>
 </body>

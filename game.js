@@ -28,7 +28,10 @@ const CONFIG = {
   CLAIMED_REWARDS_KEY: 'quoridor4_claimed_rewards',
   SHOP_KEY: 'quoridor4_shop',
   DIFFICULTY_KEY: 'quoridor4_difficulty',
-  ACHIEVEMENTS_KEY: 'quoridor4_achievements'
+  MODE_KEY: 'quoridor4_selected_players_count',
+  GAME_MODE_KEY: 'quoridor4_game_mode',
+  CHAOS_UNLOCK_TROPHIES: 300,
+  CHAOS_SPECIAL_COUNT: 8
 };
 
 const N = CONFIG.BOARD_SIZE;
@@ -50,6 +53,7 @@ const TROPHY_ROAD = [
   { req: 100,  rank: 'Argent',  icon: '🥈', reward: 250 },
   { req: 150,  rank: null,      icon: '',   reward: 150 },
   { req: 250,  rank: 'Or',      icon: '🥇', reward: 400 },
+  { req: 300,  rank: null,      icon: '🌀', reward: 0, modeUnlock: 'chaos', modeName: 'Mode Chaos' },
   { req: 350,  rank: null,      icon: '',   reward: 200 },
   { req: 500,  rank: 'Platine', icon: '💎', reward: 600 },
   { req: 650,  rank: null,      icon: '',   reward: 300 },
@@ -114,14 +118,392 @@ window.setDifficulty = function(key) {
 // des valeurs CSS pures (aucune image externe). "classic" reste identique à
 // l'apparence d'origine du pion du joueur (var(--player-0)).
 const PAWN_SKINS = [
-  { id: 'classic', name: 'Classique', price: 0,    background: 'var(--player-0)',                             glow: null },
-  { id: 'ocean',   name: 'Océan',     price: 250,  background: 'linear-gradient(135deg, #6FD3FF, #1466C2)',   glow: '#4FA8FF' },
-  { id: 'flame',   name: 'Flamme',    price: 500,  background: 'linear-gradient(135deg, #FFC96B, #E63946)',   glow: '#FF6B4A' },
-  { id: 'neon',    name: 'Néon',      price: 750,  background: 'linear-gradient(135deg, #E29CFF, #8B2FE0)',   glow: '#C77DFF' },
-  { id: 'gold',    name: 'Or',        price: 1200, background: 'linear-gradient(135deg, #FFF3C4, #FFC94D)',   glow: '#FFD166' },
-  { id: 'shadow',  name: 'Ombre',     price: 1800, background: 'linear-gradient(135deg, #4B4B57, #0B0B10)',   glow: '#8B5CF6' },
+  { id:'classic', name:'Classique', price:0,    shape:'classic', bg:'var(--player-0)', glow:null, icon:'' },
+  { id:'ocean',   name:'Robot',     price:250,  shape:'robot',   bg:'linear-gradient(145deg,#8D99AE,#334155)', glow:'#94A3B8', icon:'🤖' },
+  { id:'flame',   name:'Ninja',     price:500,  shape:'ninja',   bg:'linear-gradient(145deg,#24243E,#09090F)', glow:'#A78BFA', icon:'🥷' },
+  { id:'neon',    name:'Mage',      price:750,  shape:'mage',    bg:'linear-gradient(145deg,#7C3AED,#312E81)', glow:'#A78BFA', icon:'🪄' },
+  { id:'gold',    name:'Roi',       price:1200, shape:'king',    bg:'linear-gradient(145deg,#FDE68A,#B7791F)', glow:'#FBBF24', icon:'♛' },
+  { id:'shadow',  name:'Fantôme',   price:1800, shape:'ghost',   bg:'linear-gradient(145deg,#E5E7EB,#64748B)', glow:'#CBD5E1', icon:'👻' },
+  { id:'samurai', name:'Samouraï',  price:2200, shape:'samurai', bg:'linear-gradient(145deg,#DC2626,#450A0A)', glow:'#EF4444', icon:'⚔' },
+  { id:'alien',   name:'Alien',     price:2600, shape:'alien',   bg:'linear-gradient(145deg,#34D399,#065F46)', glow:'#34D399', icon:'👽' },
+  { id:'frog',    name:'Grenouille',price:3000, shape:'frog',    bg:'linear-gradient(145deg,#84CC16,#365314)', glow:'#84CC16', icon:'🐸' },
+  { id:'crystal', name:'Cristal',   price:3500, shape:'crystal', bg:'linear-gradient(145deg,#67E8F9,#2563EB)', glow:'#67E8F9', icon:'◆' },
+  { id:'cowboy',  name:'Cowboy',    price:4000, shape:'cowboy',  bg:'linear-gradient(145deg,#D97706,#78350F)', glow:'#F59E0B', icon:'🤠' },
 ];
 
+
+// ============================================================
+//  PERSONNALISATION — PLATEAUX
+// ============================================================
+const BOARD_THEMES = [
+  { id:'classic', name:'Classique', price:0, icon:'🪵', desc:'Le plateau original.', preview:'classic' },
+  { id:'forest', name:'Forêt', price:450, icon:'🌲', desc:'Un plateau naturel et chaleureux.', preview:'forest' },
+  { id:'ice', name:'Glace', price:900, icon:'🧊', desc:'Un plateau froid aux couleurs polaires.', preview:'ice' },
+  { id:'desert', name:'Désert', price:1400, icon:'🏜️', desc:'Sable, pierre et ambiance désertique.', preview:'desert' },
+  { id:'volcano', name:'Volcan', price:2000, icon:'🌋', desc:'Roche sombre et chaleur volcanique.', preview:'volcano' },
+  { id:'cosmos', name:'Cosmos', price:2800, icon:'🌌', desc:'Un plateau venu de l’espace.', preview:'cosmos' },
+  { id:'dungeon', name:'Donjon', price:3400, icon:'🏰', desc:'Pierre sombre, comme une arène médiévale.', preview:'dungeon' }
+];
+const BOARD_THEME_KEY = 'quoridor4_board_theme';
+const EFFECT_KEY = 'quoridor4_equipped_effect';
+const EFFECTS = [
+ {id:'trail',name:'Traînée',price:300,rarity:'Commun',icon:'💨',desc:'Une traînée légère accompagne chacun de tes déplacements.',color:'#8BD3FF'},
+ {id:'spark',name:'Étincelles',price:450,rarity:'Commun',icon:'✨',desc:'Des étincelles jaillissent à chaque déplacement.',color:'#FFD84D'},
+ {id:'lightning',name:'Foudre',price:800,rarity:'Rare',icon:'⚡',desc:'Un éclair frappe ton pion lorsque tu avances.',color:'#9B8CFF'},
+ {id:'portal',name:'Portail',price:1100,rarity:'Rare',icon:'🌀',desc:'Un portail mystique s’ouvre lorsque tu utilises une carte.',color:'#B36BFF'},
+ {id:'inferno',name:'Inferno',price:1800,rarity:'Épique',icon:'🔥',desc:'Des flammes explosent autour de ton pion.',color:'#FF6A2A'},
+ {id:'blizzard',name:'Blizzard',price:2200,rarity:'Épique',icon:'❄️',desc:'Un tourbillon de glace accompagne tes actions.',color:'#7DDCFF'},
+ {id:'galaxy',name:'Galaxie',price:3500,rarity:'Légendaire',icon:'🌌',desc:'Des étoiles et une aura cosmique suivent ton pion.',color:'#A78BFA'},
+ {id:'royal',name:'Royal',price:5000,rarity:'Légendaire',icon:'👑',desc:'Une aura royale et des particules dorées marquent tes actions.',color:'#FFD45A'}
+];
+
+// ============================================================
+//  PERSONNALISATION — EMOTES ANIMÉS
+// ============================================================
+const EMOTE_KEY = 'quoridor4_emotes';
+const EMOTES = [
+  {id:'gg', name:'Bien joué', price:250, rarity:'Commun', icon:'GG', desc:'Un petit GG animé après un beau coup.', tone:'green'},
+  {id:'clap', name:'Applaudissements', price:450, rarity:'Commun', icon:'👏', desc:'Des applaudissements éclatent autour de ton pion.', tone:'gold'},
+  {id:'laugh', name:'Mort de rire', price:700, rarity:'Rare', icon:'😂', desc:'Ton pion part dans un fou rire bien visible.', tone:'yellow'},
+  {id:'wow', name:'WOW', price:900, rarity:'Rare', icon:'WOW!', desc:'Une réaction spectaculaire apparaît au-dessus de ton pion.', tone:'blue'},
+  {id:'angry', name:'Provocation', price:1300, rarity:'Épique', icon:'!', desc:'Une réaction rouge et nerveuse fait vibrer ton pion.', tone:'red'},
+  {id:'cry', name:'Tristesse', price:1700, rarity:'Épique', icon:'💧', desc:'Une petite pluie de larmes tombe autour du pion.', tone:'cyan'},
+  {id:'fire', name:'En feu', price:2400, rarity:'Légendaire', icon:'🔥', desc:'Ton pion s’enflamme dans une animation impressionnante.', tone:'orange'},
+  {id:'crown', name:'Respect royal', price:4000, rarity:'Légendaire', icon:'♛', desc:'Une couronne apparaît avec une aura royale.', tone:'purple'}
+];
+function loadEmotes(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(EMOTE_KEY)||'{}');
+    const owned=Array.isArray(raw.owned)?raw.owned.filter(id=>EMOTES.some(e=>e.id===id)):[];
+    const equipped=Array.isArray(raw.equipped)?raw.equipped.filter(id=>owned.includes(id)&&EMOTES.some(e=>e.id===id)).slice(0,4):[];
+    if(!owned.includes('gg')) owned.unshift('gg');
+    if(!equipped.length) equipped.push('gg');
+    return {owned,equipped};
+  }catch(e){return {owned:['gg'],equipped:['gg']};}
+}
+function saveEmotes(data){localStorage.setItem(EMOTE_KEY,JSON.stringify(data));}
+function emoteOwned(id){return loadEmotes().owned.includes(id);}
+function buildEmoteCardHTML(e,data){
+  const owned=data.owned.includes(e.id), equipped=data.equipped.includes(e.id);
+  let action='';
+  if(equipped) action='<div class="shop-badge equipped">✓ ÉQUIPÉ</div>';
+  else if(owned) action=`<button class="shop-action-btn equip-btn" onclick="equipEmoteFromShop('${e.id}')">ÉQUIPER</button>`;
+  else action=`<button class="shop-action-btn buy-btn" onclick="buyEmoteFromShop('${e.id}')">ACHETER</button>`;
+  return `<div class="emote-shop-card ${owned?'owned':''} ${equipped?'equipped':''}">
+    <div class="emote-preview emote-preview-${e.id}"><div class="emote-demo-pawn"></div><div class="emote-demo-bubble">${e.icon}</div><i></i><i></i><i></i></div>
+    <div class="effect-rarity">${e.rarity}</div><div class="effect-shop-name">${e.name}</div>
+    <div class="effect-shop-desc">${e.desc}</div><div class="effect-price">${e.price?'🪙 '+e.price:'Gratuit'}</div>${action}
+  </div>`;
+}
+window.buyEmoteFromShop=function(id){
+  const e=EMOTES.find(x=>x.id===id); if(!e)return; const data=loadEmotes();
+  if(data.owned.includes(id))return;
+  if(loadCoins()<e.price){showShopFeedback('🪙 Jetons insuffisants',true);return;}
+  addCoins(-e.price); data.owned.push(id); saveEmotes(data); showShopFeedback(`🎉 ${e.name} acheté !`,false); renderShopPanel();
+};
+window.equipEmoteFromShop=function(id){
+  const data=loadEmotes(); if(!data.owned.includes(id))return;
+  if(data.equipped.includes(id)) data.equipped=data.equipped.filter(x=>x!==id);
+  else { if(data.equipped.length>=4){showShopFeedback('Tu peux équiper 4 emotes maximum.',true);return;} data.equipped.push(id); }
+  saveEmotes(data); renderShopPanel(); renderEmoteBar();
+};
+function renderEmoteBar(){
+  const bar=document.getElementById('emote-bar'); if(!bar)return;
+  const data=loadEmotes();
+  const list=data.equipped.map(id=>EMOTES.find(e=>e.id===id)).filter(Boolean);
+  bar.innerHTML=list.map(e=>`<button class="emote-use-btn emote-${e.id}" onclick="useEmote('${e.id}')" title="${e.name}"><span>${e.icon}</span></button>`).join('') || '<span class="emote-empty">Équipe des emotes dans la boutique</span>';
+}
+window.useEmote=function(id){
+  if(!state || state.gameOver)return;
+  const player=currentPlayer(); if(!player || !player.isHuman)return;
+  const data=loadEmotes(); if(!data.equipped.includes(id))return;
+  showAnimatedEmote(id,player);
+};
+function showAnimatedEmote(id,player){
+  const board=document.getElementById('board-frame'); const pawn=document.getElementById('pawn-'+player.id); const e=EMOTES.find(x=>x.id===id); if(!board||!pawn||!e)return;
+  const br=board.getBoundingClientRect(), pr=pawn.getBoundingClientRect();
+  const bubble=document.createElement('div'); bubble.className=`battle-emote battle-emote-${id}`; bubble.innerHTML=`<div class="battle-emote-bubble">${e.icon}</div><div class="battle-emote-burst"><i></i><i></i><i></i><i></i></div>`;
+  bubble.style.left=(pr.left-br.left+pr.width/2)+'px'; bubble.style.top=(pr.top-br.top+pr.height*.15)+'px';
+  board.appendChild(bubble); setTimeout(()=>bubble.remove(),1250);
+}
+
+let shopCategory = 'pawns';
+
+function loadBoardTheme() {
+  const saved = localStorage.getItem(BOARD_THEME_KEY);
+  return BOARD_THEMES.some(t => t.id === saved) ? saved : 'classic';
+}
+function saveBoardTheme(id) { localStorage.setItem(BOARD_THEME_KEY, id); }
+function getBoardTheme() { return BOARD_THEMES.find(t => t.id === loadBoardTheme()) || BOARD_THEMES[0]; }
+function applyBoardTheme() {
+  const frame = document.getElementById('board-frame');
+  if (!frame) return;
+  const theme = getBoardTheme();
+  frame.classList.remove(...BOARD_THEMES.map(t => 'theme-' + t.id));
+  frame.classList.add('theme-' + theme.id);
+}
+
+window.buyBoardThemeFromShop = function(themeId) {
+  const theme = BOARD_THEMES.find(t => t.id === themeId);
+  if (!theme) return;
+  const shop = loadShop();
+  shop.boardOwned = Array.isArray(shop.boardOwned) ? shop.boardOwned : ['classic'];
+  if (!shop.boardOwned.includes('classic')) shop.boardOwned.unshift('classic');
+  if (shop.boardOwned.includes(themeId)) return;
+  const coins = loadCoins();
+  if (coins < theme.price) {
+    showShopFeedback('🪙 Jetons insuffisants', true);
+    return;
+  }
+  addCoins(-theme.price);
+  shop.boardOwned.push(themeId);
+  saveShop(shop);
+  showShopFeedback(`🛍️ ${theme.name} acheté !`, false);
+  renderShopPanel();
+};
+
+window.equipBoardThemeFromShop = function(themeId) {
+  const shop = loadShop();
+  const owned = Array.isArray(shop.boardOwned) ? shop.boardOwned : ['classic'];
+  if (!owned.includes(themeId)) return;
+  saveBoardTheme(themeId);
+  applyBoardTheme();
+  renderShopPanel();
+};
+
+
+// ============================================================
+//  CARTES & COLLECTION
+// ============================================================
+const CARDS = [
+  // Communes
+  { id:'sprint', name:'Sprint', icon:'⚡', rarity:'Commune', color:'#4DA3FF', desc:'Avance jusqu’à 2 cases en suivant ton meilleur chemin.', weight:18, effect:'sprint2' },
+  { id:'freewall', name:'Mur gratuit', icon:'🧱', rarity:'Commune', color:'#63C174', desc:'Pose une barrière sans consommer de barrière.', weight:18, effect:'freewall' },
+  { id:'vision', name:'Vision', icon:'👁️', rarity:'Commune', color:'#6E8DFF', desc:'Révèle les 3 prochaines cases de ton meilleur chemin.', weight:16, effect:'vision3' },
+  { id:'rebound', name:'Rebond', icon:'↩️', rarity:'Commune', color:'#3FB7A3', desc:'Avance d’une case supplémentaire si elle est disponible.', weight:14, effect:'sprint2' },
+  { id:'builder', name:'Petit bâtisseur', icon:'🔨', rarity:'Commune', color:'#8A9A5B', desc:'Pose une barrière avec une tentative gratuite supplémentaire.', weight:12, effect:'freewall' },
+  { id:'focus', name:'Concentration', icon:'🎯', rarity:'Commune', color:'#5B8DEF', desc:'Révèle ton meilleur prochain déplacement.', weight:10, effect:'vision3' },
+
+  // Rares
+  { id:'doubleturn', name:'Double tour', icon:'🔄', rarity:'Rare', color:'#4C7DFF', desc:'Ton prochain coup est immédiatement suivi d’un autre.', weight:7, effect:'doubleturn' },
+  { id:'jump', name:'Saut', icon:'🌀', rarity:'Rare', color:'#7A5CFF', desc:'Avance jusqu’à 3 cases en une seule utilisation.', weight:6, effect:'jump3' },
+  { id:'longvision', name:'Radar', icon:'📡', rarity:'Rare', color:'#2FA8D8', desc:'Révèle jusqu’à 5 cases de ton meilleur chemin.', weight:5, effect:'vision5' },
+  { id:'reservewall', name:'Réserve', icon:'📦', rarity:'Rare', color:'#3B9E68', desc:'Récupère une barrière pour ta réserve.', weight:5, effect:'recoverwall' },
+  { id:'precision', name:'Précision', icon:'🧭', rarity:'Rare', color:'#4D9FBF', desc:'Ton prochain déplacement suit directement la meilleure route.', weight:4, effect:'sprint2' },
+
+  // Épiques
+  { id:'dash', name:'Ruée', icon:'💨', rarity:'Épique', color:'#A855F7', desc:'Avance jusqu’à 4 cases sur ton meilleur chemin.', weight:3, effect:'jump4' },
+  { id:'fortress', name:'Forteresse', icon:'🏰', rarity:'Épique', color:'#8B5CF6', desc:'Pose une barrière gratuite et récupère une barrière ensuite.', weight:3, effect:'fortress' },
+  { id:'oracle', name:'Oracle', icon:'🔮', rarity:'Épique', color:'#9B6DFF', desc:'Révèle jusqu’à 7 cases de ton meilleur chemin.', weight:2.5, effect:'vision7' },
+  { id:'momentum', name:'Élan', icon:'🔥', rarity:'Épique', color:'#E06CFF', desc:'Avance jusqu’à 3 cases et gagne un déplacement supplémentaire.', weight:2, effect:'momentum' },
+  { id:'architect', name:'Architecte', icon:'📐', rarity:'Épique', color:'#C084FC', desc:'Pose une barrière gratuitement, même si ta réserve est vide.', weight:2, effect:'freewall' },
+
+  // Légendaires
+  { id:'warp', name:'Distorsion', icon:'🪐', rarity:'Légendaire', color:'#D946EF', desc:'Avance jusqu’à 5 cases en suivant le meilleur chemin.', weight:1.2, effect:'jump5' },
+  { id:'mastermind', name:'Génie tactique', icon:'🧠', rarity:'Légendaire', color:'#EC4899', desc:'Révèle jusqu’à 9 cases de ton meilleur chemin.', weight:0.9, effect:'vision9' },
+  { id:'fortressplus', name:'Bastion', icon:'🛡️', rarity:'Légendaire', color:'#F59E0B', desc:'Pose une barrière gratuite et récupère immédiatement une barrière.', weight:0.7, effect:'fortress' },
+  { id:'legendaryrush', name:'Éclair légendaire', icon:'🌟', rarity:'Légendaire', color:'#F97316', desc:'Avance jusqu’à 5 cases puis rejoue immédiatement.', weight:0.5, effect:'legendaryrush' }
+];
+const CARD_KEY = 'quoridor4_cards';
+const CARD_HAND_SIZE = 3;
+const PACK_COST = 300;
+const DECK_KEY = 'quoridor4_card_deck';
+const DECK_SIZE = 5;
+
+function loadCards() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CARD_KEY) || '{}');
+    if (!raw.collection || typeof raw.collection !== 'object') throw new Error('bad');
+    return { collection: raw.collection, starter: !!raw.starter };
+  } catch(e) { return { collection:{ sprint:1, freewall:1, vision:1 }, starter:false }; }
+}
+function saveCards(data) { localStorage.setItem(CARD_KEY, JSON.stringify(data)); }
+function ensureStarterCards() {
+  const data = loadCards();
+  if (!data.starter) {
+    data.collection.sprint = Math.max(1, Number(data.collection.sprint)||0);
+    data.collection.freewall = Math.max(1, Number(data.collection.freewall)||0);
+    data.collection.vision = Math.max(1, Number(data.collection.vision)||0);
+    data.starter = true; saveCards(data);
+  }
+  return data;
+}
+function ownedCards() {
+  const data = ensureStarterCards();
+  return CARDS.filter(c => (Number(data.collection[c.id])||0) > 0);
+}
+function cardById(id) { return CARDS.find(c => c.id === id); }
+function weightedRandomCard() {
+  const total = CARDS.reduce((n,c)=>n+c.weight,0); let roll=Math.random()*total;
+  for (const c of CARDS) { roll -= c.weight; if (roll <= 0) return c; }
+  return CARDS[0];
+}
+function addCardToCollection(id, amount=1) {
+  const data=ensureStarterCards(); data.collection[id]=(Number(data.collection[id])||0)+amount; saveCards(data);
+}
+function cardCounts() { return ensureStarterCards().collection; }
+function loadDeck() {
+  const owned = ownedCards().map(c=>c.id);
+  let deck=[];
+  try { deck=JSON.parse(localStorage.getItem(DECK_KEY)||'[]'); } catch(e) { deck=[]; }
+  deck = Array.isArray(deck) ? deck.filter(id=>owned.includes(id)) : [];
+  if (!deck.length) deck=owned.slice(0, DECK_SIZE);
+  deck=[...new Set(deck)].slice(0,DECK_SIZE);
+  localStorage.setItem(DECK_KEY, JSON.stringify(deck));
+  return deck;
+}
+function saveDeck(deck) { localStorage.setItem(DECK_KEY, JSON.stringify([...new Set(deck)].slice(0,DECK_SIZE))); }
+function toggleDeckCard(id) {
+  const owned=ownedCards().map(c=>c.id); if(!owned.includes(id)) return;
+  let deck=loadDeck();
+  if(deck.includes(id)) deck=deck.filter(x=>x!==id);
+  else if(deck.length<DECK_SIZE) deck.push(id);
+  else { showMessage('Ton deck est déjà complet (5 cartes).',2200); return; }
+  saveDeck(deck); openMenuPanel('cards');
+}
+window.toggleDeckCard=toggleDeckCard;
+function drawHand() {
+  const pool=loadDeck();
+  if (!pool.length) return [];
+  const shuffled=[...pool].sort(()=>Math.random()-.5);
+  return shuffled.slice(0,CARD_HAND_SIZE);
+}
+function consumeCard(id) {
+  const data=ensureStarterCards();
+  const n=Number(data.collection[id])||0;
+  if(n<=0) return false;
+  data.collection[id]=n-1; saveCards(data); return true;
+}
+let pendingPackRewards = null;
+let packOpenPhase = 'idle';
+
+function openCardPack() {
+  const coins=loadCoins();
+  if(coins<PACK_COST) { showMessage(`Il te faut ${PACK_COST} 🪙 pour acheter un pack.`); return; }
+  const overlay=document.getElementById('pack-opening-overlay');
+  if(!overlay || overlay.classList.contains('opening')) return;
+
+  // L'achat ne révèle rien immédiatement : le pack apparaît d'abord à l'écran.
+  addCoins(-PACK_COST);
+  pendingPackRewards=[];
+  for(let i=0;i<3;i++) pendingPackRewards.push(weightedRandomCard());
+  packOpenPhase='ready';
+  showPackReadyAnimation();
+}
+
+function showPackReadyAnimation() {
+  const overlay=document.getElementById('pack-opening-overlay');
+  const visual=document.getElementById('pack-visual');
+  const stage=document.getElementById('pack-reveal-stage');
+  const subtitle=document.getElementById('pack-opening-subtitle');
+  const closeBtn=document.getElementById('pack-opening-close');
+  if(!overlay || !visual || !stage || !subtitle) return;
+
+  overlay.classList.remove('hidden','closing');
+  overlay.classList.add('opening','pack-ready-phase');
+  overlay.setAttribute('aria-hidden','false');
+  stage.innerHTML='';
+  if(closeBtn) closeBtn.classList.add('hidden');
+  // Reset propre des animations pour que chaque nouvel achat rejoue vraiment l'entrée.
+  visual.className='pack-visual';
+  void visual.offsetWidth;
+  visual.classList.add('pack-ready');
+  subtitle.textContent='Clique sur le pack pour l’ouvrir';
+
+  // Le pack devient cliquable après son arrivée à l'écran.
+  visual.onclick=triggerPackOpening;
+  visual.setAttribute('role','button');
+  visual.setAttribute('tabindex','0');
+  visual.setAttribute('aria-label','Ouvrir le pack');
+  visual.onkeydown=(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); triggerPackOpening(); } };
+}
+
+function triggerPackOpening() {
+  if(packOpenPhase!=='ready') return;
+  packOpenPhase='opening';
+
+  const overlay=document.getElementById('pack-opening-overlay');
+  const visual=document.getElementById('pack-visual');
+  const subtitle=document.getElementById('pack-opening-subtitle');
+  if(!overlay || !visual) return;
+
+  visual.onclick=null;
+  visual.onkeydown=null;
+  visual.removeAttribute('tabindex');
+  visual.setAttribute('aria-label','Pack en cours d’ouverture');
+  subtitle.textContent='Il s’ouvre...';
+  playSound('pack');
+
+  // Petit délai de suspense : tremblement, puis ouverture et grosse lumière.
+  // Force le navigateur à repartir d'un état neutre avant le shake.
+  visual.classList.remove('pack-ready','pack-shake','pack-opened','pack-light-burst');
+  void visual.offsetWidth;
+  visual.classList.add('pack-shake');
+  setTimeout(()=>visual.classList.add('pack-opened'),520);
+  setTimeout(()=>{
+    subtitle.textContent='✨ La lumière sort du pack !';
+    visual.classList.add('pack-light-burst');
+  },680);
+
+  // Pour l'instant on s'arrête à cette étape : le reveal des cartes viendra ensuite.
+  setTimeout(()=>{
+    if(packOpenPhase!=='opening') return;
+    subtitle.textContent='Pack ouvert !';
+    if(pendingPackRewards){
+      pendingPackRewards.forEach(card=>addCardToCollection(card.id,1));
+    }
+    packOpenPhase='opened';
+  },1250);
+}
+
+function openPackOpeningAnimation(rewards) {
+  // Compatibilité avec les anciennes versions : redirige vers le nouveau flow.
+  pendingPackRewards = Array.isArray(rewards) ? rewards : null;
+  showPackReadyAnimation();
+}
+
+function closePackOpening() {
+  const overlay=document.getElementById('pack-opening-overlay');
+  const visual=document.getElementById('pack-visual');
+  if(!overlay) return;
+  packOpenPhase='idle';
+  pendingPackRewards=null;
+  if(visual){ visual.onclick=null; visual.onkeydown=null; }
+  overlay.classList.remove('opening','pack-ready-phase');
+  overlay.classList.add('closing');
+  setTimeout(()=>{
+    overlay.classList.add('hidden');
+    overlay.classList.remove('closing');
+    overlay.setAttribute('aria-hidden','true');
+    openMenuPanel('cards');
+  },260);
+}
+window.openCardPack=openCardPack;
+window.openCardsPanel=()=>openMenuPanel('cards');
+
+function buildCardCollectionHTML() {
+  const counts=cardCounts();
+  const deck=loadDeck();
+  const ownedCount=CARDS.filter(c=>(Number(counts[c.id])||0)>0).length;
+  const totalCopies=Object.values(counts).reduce((a,b)=>a+(Number(b)||0),0);
+  const cards=CARDS.map(c=>{
+    const count=Number(counts[c.id])||0;
+    const owned=count>0, selected=deck.includes(c.id);
+    return `<button class="collection-card ${owned?'owned':'locked'} ${selected?'in-deck':''}" style="--card-color:${c.color}" ${owned?`onclick="toggleDeckCard('${c.id}')"`:''}>
+      <div class="collection-card-icon">${owned?c.icon:'?'}</div>
+      <div class="collection-card-main">
+        <div class="collection-card-title"><strong>${owned?c.name:'Carte verrouillée'}</strong><span class="card-rarity">${c.rarity}</span></div>
+        <p>${owned?c.desc:'Ouvre des packs pour découvrir cette carte.'}</p>
+      </div>
+      <div class="collection-card-side">${owned?`<span class="collection-count">×${count}</span>${selected?'<span class="deck-check">✓</span>':''}`:'🔒'}</div>
+    </button>`;
+  }).join('');
+  const deckCards=deck.map(id=>cardById(id)).filter(Boolean).map(c=>`<div class="deck-mini" style="--card-color:${c.color}"><span>${c.icon}</span><b>${c.name}</b></div>`).join('');
+  return `<div class="cards-header"><div><h2>🃏 Collection</h2><p class="panel-subtitle">Choisis jusqu'à 5 cartes pour ton deck. Tu en piocheras 3 par partie.</p></div><div class="cards-owned">${ownedCount}/${CARDS.length} découvertes<br><small>${totalCopies} exemplaires</small></div></div>
+  <div class="deck-panel"><div class="deck-panel-head"><div><strong>🎴 Mon deck</strong><span>${deck.length}/${DECK_SIZE}</span></div><small>${deck.length<DECK_SIZE?'Ajoute des cartes en appuyant dessus.':'Deck complet'}</small></div><div class="deck-slots">${deckCards || '<div class="deck-empty">Aucune carte sélectionnée</div>'}</div></div>
+  <div class="pack-box"><div><strong>🎁 Pack de cartes</strong><p>3 cartes aléatoires • avec une chance de tomber sur une rareté supérieure.</p><small>Coût : ${PACK_COST} 🪙</small></div><button class="pack-open-btn" onclick="openCardPack()">ACHETER UN PACK</button></div>
+  <div class="collection-list">${cards}</div>`;
+}
 function getSkin(id) {
   return PAWN_SKINS.find(s => s.id === id) || PAWN_SKINS[0];
 }
@@ -130,19 +512,47 @@ function getSkin(id) {
    2. GÉOMÉTRIE
    ============================================================ */
 
-function stepSize() { return CONFIG.CELL_SIZE + CONFIG.WALL_GAP; }
-function cellPixelPos(r, c) { const step = stepSize(); return { x: c * step, y: r * step }; }
-function boardPixelSize() { return N * CONFIG.CELL_SIZE + (N - 1) * CONFIG.WALL_GAP; }
+function pentMetrics() {
+  // Le plateau garde la forme d'un pentagone régulier, mais chaque case
+  // est légèrement séparée de la suivante pour qu'aucune ne soit coupée.
+  const target = Math.min(window.innerWidth * 0.88, 422);
+  const gap = Math.max(6, target * 0.022);
+  const cell = (target - 8 * gap) / 9;
+  return { cell, gap, step: cell + gap };
+}
+
+function stepSize() {
+  return isPentagonMode() ? pentMetrics().step : CONFIG.CELL_SIZE + CONFIG.WALL_GAP;
+}
+
+function cellPixelPos(r, c) {
+  const m = isPentagonMode() ? pentMetrics() : { cell: CONFIG.CELL_SIZE, step: stepSize() };
+  const offset = isPentagonMode() ? (m.step - m.cell) / 2 : 0;
+  return { x: c * m.step + offset, y: r * m.step + offset };
+}
+
+function boardPixelSize() {
+  if (isPentagonMode()) {
+    const m = pentMetrics();
+    return N * m.cell + (N - 1) * m.gap;
+  }
+  return N * CONFIG.CELL_SIZE + (N - 1) * CONFIG.WALL_GAP;
+}
 
 function wallPixelRect(i, j, orientation) {
-  const step = stepSize(); const gap = CONFIG.WALL_GAP; const cell = CONFIG.CELL_SIZE;
-  if (orientation === 'H') { return { x: j * step, y: (i + 1) * step - gap, width: 2 * cell + gap, height: gap }; } 
-  else { return { x: (j + 1) * step - gap, y: i * step, width: gap, height: 2 * cell + gap }; }
+  const m = isPentagonMode() ? pentMetrics() : { cell: CONFIG.CELL_SIZE, gap: CONFIG.WALL_GAP, step: stepSize() };
+  const step = m.step, gap = m.gap, cell = m.cell;
+  if (orientation === 'H') {
+    return { x: j * step + (isPentagonMode() ? (step-cell)/2 : 0), y: (i + 1) * step - gap, width: 2 * cell + gap, height: gap };
+  }
+  return { x: (j + 1) * step - gap, y: i * step + (isPentagonMode() ? (step-cell)/2 : 0), width: gap, height: 2 * cell + gap };
 }
 
 function jointHitboxRect(i, j) {
-  const step = stepSize(); const gap = CONFIG.WALL_GAP; const HIT = Math.max(gap + 14, 22);
-  const centerX = (j + 1) * step - gap / 2; const centerY = (i + 1) * step - gap / 2;
+  const m = isPentagonMode() ? pentMetrics() : { gap: CONFIG.WALL_GAP, step: stepSize() };
+  const gap = m.gap, step = m.step, HIT = Math.max(gap + 14, 22);
+  const centerX = (j + 1) * step - gap / 2;
+  const centerY = (i + 1) * step - gap / 2;
   return { x: centerX - HIT / 2, y: centerY - HIT / 2, size: HIT };
 }
 
@@ -150,32 +560,234 @@ function jointHitboxRect(i, j) {
    3. ÉTAT DU JEU
    ============================================================ */
 
-const PLAYER_DEFS = [
-  { id: 0, name: 'Toi',   color: 'var(--player-0)', side: 'bottom', isHuman: true  },
-  { id: 1, name: 'Bot 1', color: 'var(--player-1)', side: 'top',    isHuman: false },
-  { id: 2, name: 'Bot 2', color: 'var(--player-2)', side: 'left',   isHuman: false },
-  { id: 3, name: 'Bot 3', color: 'var(--player-3)', side: 'right',  isHuman: false },
+const ALL_PLAYER_DEFS = [
+  { id: 0, name: 'Toi',   color: 'var(--player-0)', side: 'bottom',   pentSide: 2, isHuman: true  },
+  { id: 1, name: 'Bot 1', color: 'var(--player-1)', side: 'top',      pentSide: 0, isHuman: false },
+  { id: 2, name: 'Bot 2', color: 'var(--player-2)', side: 'right',    pentSide: 1, isHuman: false },
+  { id: 3, name: 'Bot 3', color: 'var(--player-3)', side: 'left',     pentSide: 3, isHuman: false },
+  { id: 4, name: 'Bot 4', color: 'var(--player-4)', side: 'top-left', pentSide: 4, isHuman: false },
 ];
 
+// En mode 5 joueurs, le plateau devient un vrai pentagone régulier.
+// Les 5 côtés ont la même longueur et chaque joueur possède un côté de départ
+// et un côté d'arrivée distincts. La grille reste discrète pour conserver les
+// règles de déplacement/barrières existantes.
+const PENTAGON_VERTICES = [
+  [0.50, 0.00], [0.975528, 0.345492], [0.793893, 0.904508],
+  [0.206107, 0.904508], [0.024472, 0.345492]
+];
+const PENTAGON_GOAL_SIDE = { 0: 2, 1: 3, 2: 4, 3: 0, 4: 1 };
+
+function isPentagonMode() { return getSelectedPlayersCount() === 5; }
+
+function pointInPentagon(x, y) {
+  let inside = false;
+  for (let i = 0, j = PENTAGON_VERTICES.length - 1; i < PENTAGON_VERTICES.length; j = i++) {
+    const xi = PENTAGON_VERTICES[i][0], yi = PENTAGON_VERTICES[i][1];
+    const xj = PENTAGON_VERTICES[j][0], yj = PENTAGON_VERTICES[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function isPlayableCell(r, c) {
+  if (!isPentagonMode()) return true;
+
+  // Une case n'est jouable que si ses 4 coins restent dans le pentagone.
+  // Ainsi aucune case n'est coupée par un côté incliné : toutes les cases
+  // visibles sont entières.
+  const m = pentMetrics();
+  const boardSize = boardPixelSize();
+  const { x, y } = cellPixelPos(r, c);
+  const inset = 0.8;
+  const x0 = (x + inset) / boardSize;
+  const y0 = (y + inset) / boardSize;
+  const x1 = (x + m.cell - inset) / boardSize;
+  const y1 = (y + m.cell - inset) / boardSize;
+  return pointInPentagon(x0, y0) &&
+         pointInPentagon(x1, y0) &&
+         pointInPentagon(x0, y1) &&
+         pointInPentagon(x1, y1);
+}
+
+function pentagonSideDistance(x, y, sideIndex) {
+  const a = PENTAGON_VERTICES[sideIndex];
+  const b = PENTAGON_VERTICES[(sideIndex + 1) % PENTAGON_VERTICES.length];
+  const vx = b[0] - a[0], vy = b[1] - a[1];
+  const wx = x - a[0], wy = y - a[1];
+  const t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / (vx * vx + vy * vy)));
+  const px = a[0] + t * vx, py = a[1] + t * vy;
+  return Math.hypot(x - px, y - py);
+}
+
+function nearestPlayableCellToPentSide(sideIndex) {
+  let best = null, bestScore = Infinity;
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (!isPlayableCell(r, c)) continue;
+    const x = (c + 0.5) / N, y = (r + 0.5) / N;
+    const a = PENTAGON_VERTICES[sideIndex];
+    const b = PENTAGON_VERTICES[(sideIndex + 1) % PENTAGON_VERTICES.length];
+    const midX = (a[0] + b[0]) / 2, midY = (a[1] + b[1]) / 2;
+    const score = pentagonSideDistance(x, y, sideIndex) + Math.hypot(x - midX, y - midY) * 0.35;
+    if (score < bestScore) { bestScore = score; best = { row: r, col: c }; }
+  }
+  return best;
+}
+
+function getSelectedPlayersCount() {
+  const value = parseInt(localStorage.getItem(CONFIG.MODE_KEY) || '4', 10);
+  return Number.isInteger(value) && value >= 2 && value <= 5 ? value : 4;
+}
+function setSelectedPlayersCount(count) {
+  if (count >= 2 && count <= 5) localStorage.setItem(CONFIG.MODE_KEY, String(count));
+}
+
+
+
+// ============================================================
+// MODE CHAOS — cases spéciales
+// ============================================================
+const CHAOS_MODE = 'chaos';
+const CHAOS_SPECIALS = [
+  { id:'replay',  icon:'↻', name:'Rejoue',       desc:'Tu rejoues immédiatement.', cls:'special-replay' },
+  { id:'swap',    icon:'⇄', name:'Échange',      desc:'Ta position est échangée avec un adversaire.', cls:'special-swap' },
+  { id:'ghost',   icon:'◈', name:'Passe-muraille',desc:'Ton prochain déplacement peut traverser une barrière.', cls:'special-ghost' },
+  { id:'turbo',   icon:'»', name:'Turbo',         desc:'Ton prochain déplacement peut aller jusqu’à 2 cases.', cls:'special-turbo' },
+  { id:'shield',  icon:'◆', name:'Bouclier',     desc:'Tu bloques le prochain effet négatif.', cls:'special-shield' },
+  { id:'skip',    icon:'×', name:'Piège',        desc:'Tu perdras ton prochain tour.', cls:'special-skip' },
+  { id:'magnet',  icon:'●', name:'Aimant',       desc:'Le joueur adverse le plus proche est attiré vers toi.', cls:'special-magnet' },
+  { id:'teleport',icon:'✦', name:'Téléportation', desc:'Tu es envoyé vers une case libre aléatoire.', cls:'special-teleport' }
+];
+
+function isChaosMode() { return localStorage.getItem(CONFIG.GAME_MODE_KEY) === CHAOS_MODE; }
+function setGameMode(mode) {
+  localStorage.setItem(CONFIG.GAME_MODE_KEY, mode === CHAOS_MODE ? CHAOS_MODE : 'classic');
+}
+function getGameMode() { return isChaosMode() ? CHAOS_MODE : 'classic'; }
+function chaosSpecialById(id) { return CHAOS_SPECIALS.find(x=>x.id===id); }
+function chaosKey(r,c) { return `${r},${c}`; }
+function getChaosSpecial(r,c) { return state && state.specialCells ? state.specialCells.get(chaosKey(r,c)) : null; }
+function chaosCandidates(players) {
+  const candidates=[];
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) {
+    if(!isPlayableCell(r,c)) continue;
+    if(players.some(p=>p.row===r && p.col===c)) continue;
+    // Évite de remplir les cases immédiatement autour des départs.
+    if(players.some(p=>Math.abs(p.row-r)+Math.abs(p.col-c)<=1)) continue;
+    candidates.push([r,c]);
+  }
+  return candidates;
+}
+function generateChaosSpecialCells(players) {
+  const map=new Map();
+  const candidates=chaosCandidates(players);
+  for(let i=candidates.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+  const types=CHAOS_SPECIALS.map(x=>x.id);
+  for(let i=types.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[types[i],types[j]]=[types[j],types[i]];}
+  const count=Math.min(CONFIG.CHAOS_SPECIAL_COUNT,candidates.length,types.length);
+  for(let i=0;i<count;i++) map.set(chaosKey(candidates[i][0],candidates[i][1]),types[i]);
+  return map;
+}
+function renderChaosSpecialCells() {
+  // Les cases spéciales sont des cases du plateau : on ne doit surtout pas
+  // supprimer les éléments .cell eux-mêmes quand une case est consommée.
+  document.querySelectorAll('.chaos-special-cell').forEach(el=>{
+    el.classList.remove('chaos-special-cell');
+    el.removeAttribute('data-special');
+    el.removeAttribute('title');
+    el.innerHTML='';
+  });
+  if(!state || !isChaosMode()) return;
+  for(const [key,id] of state.specialCells.entries()){
+    const [r,c]=key.split(',').map(Number); const cell=document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`); const info=chaosSpecialById(id);
+    if(!cell || !info) continue;
+    cell.classList.add('chaos-special-cell',info.cls); cell.dataset.special=id; cell.innerHTML=`<span class="chaos-special-mystery">?</span>`; cell.title='Case spéciale';
+  }
+}
+function showChaosTrigger(player, info) {
+  const frame=document.getElementById('board-frame'), pawn=document.getElementById('pawn-'+player.id); if(!frame||!pawn)return;
+  const br=frame.getBoundingClientRect(), pr=pawn.getBoundingClientRect();
+  const fx=document.createElement('div'); fx.className=`chaos-trigger ${info.cls}`; fx.innerHTML=`<div class="chaos-trigger-ring"></div><strong>${info.icon}</strong><span>${info.name}</span>`;
+  fx.style.left=(pr.left-br.left+pr.width/2)+'px'; fx.style.top=(pr.top-br.top+pr.height/2)+'px'; frame.appendChild(fx); setTimeout(()=>fx.remove(),1100);
+}
+function getMovementNeighbors(player,r,c) {
+  const deltas=[[-1,0],[1,0],[0,-1],[0,1]], out=[];
+  const ignoreWalls=(player.wallPassMoves||0)>0;
+  for(const [dr,dc] of deltas){const nr=r+dr,nc=c+dc;if(nr<0||nr>=N||nc<0||nc>=N||!isPlayableCell(nr,nc))continue;if(ignoreWalls||isEdgeOpen(r,c,nr,nc))out.push([nr,nc]);}
+  return out;
+}
+function getChaosReachableCells(player,maxSteps) {
+  const seen=new Map([[chaosKey(player.row,player.col),0]]), q=[[player.row,player.col]];
+  for(let qi=0;qi<q.length;qi++){
+    const [r,c]=q[qi], d=seen.get(chaosKey(r,c)); if(d>=maxSteps)continue;
+    for(const [nr,nc] of getMovementNeighbors(player,r,c)){
+      if(isCellOccupied(nr,nc,player.id)) continue;
+      const k=chaosKey(nr,nc); if(!seen.has(k)){seen.set(k,d+1);q.push([nr,nc]);}
+    }
+  }
+  seen.delete(chaosKey(player.row,player.col)); return [...seen.keys()].map(k=>k.split(',').map(Number));
+}
+function movePlayerToward(target, mover) {
+  const opts=getValidMoveCells(target); if(!opts.length)return false;
+  opts.sort((a,b)=>Math.abs(a[0]-mover.row)+Math.abs(a[1]-mover.col)-Math.abs(b[0]-mover.row)-Math.abs(b[1]-mover.col));
+  movePawn(target,opts[0][0],opts[0][1]); return true;
+}
+function resolveChaosCell(player) {
+  if(!isChaosMode() || !state || state.gameOver) return false;
+  const id=getChaosSpecial(player.row,player.col); if(!id)return false;
+  const info=chaosSpecialById(id); if(!info)return false;
+  // La case reste en place mais ne se redéclenche pas immédiatement si un effet téléporte dessus.
+  state.specialCells.delete(chaosKey(player.row,player.col));
+  const protectedPlayer = player.chaosShield>0;
+  showChaosTrigger(player,info); playSound('card'); showMessage(`${info.icon} ${info.name} — ${info.desc}`,2800);
+  if(id==='replay') state.extraTurnForId=player.id;
+  else if(id==='ghost') player.wallPassMoves=1;
+  else if(id==='turbo') player.chaosBonusSteps=2;
+  else if(id==='shield') player.chaosShield=1;
+  else if(id==='skip') { if(protectedPlayer){player.chaosShield=0;showMessage('🛡️ Ton bouclier a bloqué le piège !',2500);} else player.skipNextTurn=true; }
+  else if(id==='swap') {
+    if(protectedPlayer){player.chaosShield=0;showMessage('🛡️ Ton bouclier a bloqué l’échange !',2500);}
+    else { const opps=state.players.filter(p=>p.id!==player.id); if(opps.length){const opp=opps[Math.floor(Math.random()*opps.length)]; const old={row:player.row,col:player.col}; player.row=opp.row;player.col=opp.col;opp.row=old.row;opp.col=old.col;renderPawns();} }
+  }
+  else if(id==='magnet') {
+    if(protectedPlayer){player.chaosShield=0;showMessage('🛡️ Ton bouclier a bloqué l’aimant !',2500);}
+    else { const opps=state.players.filter(p=>p.id!==player.id).sort((a,b)=>(Math.abs(a.row-player.row)+Math.abs(a.col-player.col))-(Math.abs(b.row-player.row)+Math.abs(b.col-player.col))); if(opps[0]){movePlayerToward(opps[0],player);renderPawns();} }
+  }
+  else if(id==='teleport') {
+    const opts=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(isPlayableCell(r,c)&&!isCellOccupied(r,c,player.id))opts.push([r,c]);
+    if(opts.length){const [r,c]=opts[Math.floor(Math.random()*opts.length)];player.row=r;player.col=c;renderPawns();}
+  }
+  renderChaosSpecialCells(); refreshHighlights();
+  return true;
+}
+
 let state = null;
-let uiLocked = false; 
+let uiLocked = false;
 
 function createNewGameState() {
+  const count = isChaosMode() ? 4 : getSelectedPlayersCount();
   const mid = Math.floor(N / 2);
   const startPositions = {
     bottom: { row: N - 1, col: mid }, top: { row: 0, col: mid },
     left: { row: mid, col: 0 }, right: { row: mid, col: N - 1 },
+    'top-left': { row: 0, col: 0 }
   };
-
-  const players = PLAYER_DEFS.map(def => ({
-    ...def, row: startPositions[def.side].row, col: startPositions[def.side].col, wallsLeft: CONFIG.WALLS_PER_PLAYER,
-  }));
-
-  return {
+  const wallsPerPlayer = count === 2 ? 8 : count === 3 ? 6 : count === 4 ? 5 : 4;
+  const players = ALL_PLAYER_DEFS.slice(0, count).map(def => {
+    const pos = count === 5 ? nearestPlayableCellToPentSide(def.pentSide) : startPositions[def.side];
+    return { ...def, row: pos.row, col: pos.col, wallsLeft: wallsPerPlayer };
+  });
+  const gameState = {
     players, currentPlayerIndex: 0, walls: new Set(), jointOrientations: new Map(),
-    mode: 'move', orientation: 'H', gameOver: false, difficulty: getDifficultyKey(), trophies: loadTrophies(), coins: loadCoins(),
-    turnCount: 0
+    mode: 'move', orientation: 'H', gameOver: false, difficulty: getDifficultyKey(),
+    trophies: loadTrophies(), coins: loadCoins(),
+    cardHand: drawHand(), cardUsed: new Set(), pendingFreeWall: false, extraTurn: false, extraTurnForId: null, visionCells: [],
+    chaos: getGameMode() === CHAOS_MODE, specialCells: new Map()
   };
+  state = gameState;
+  if (gameState.chaos) gameState.specialCells = generateChaosSpecialCells(players);
+  return gameState;
 }
 
 function currentPlayer() { return state.players[state.currentPlayerIndex]; }
@@ -196,14 +808,28 @@ function neighborsOpen(r, c) {
   for (const [dr, dc] of deltas) {
     const nr = r + dr, nc = c + dc;
     if (nr < 0 || nr >= N || nc < 0 || nc >= N) continue;
+    if (!isPlayableCell(nr, nc)) continue;
     if (isEdgeOpen(r, c, nr, nc)) result.push([nr, nc]);
   }
   return result;
 }
 
 function isGoalCell(side, r, c) {
-  if (side === 'bottom') return r === 0; if (side === 'top') return r === N - 1;
-  if (side === 'left') return c === N - 1; if (side === 'right') return c === 0;
+  if (isPentagonMode()) {
+    const player = ALL_PLAYER_DEFS.find(p => p.side === side);
+    if (!player) return false;
+    const goalSide = PENTAGON_GOAL_SIDE[player.pentSide];
+    if (!isPlayableCell(r, c)) return false;
+    const x = (c + 0.5) / N, y = (r + 0.5) / N;
+    return pentagonSideDistance(x, y, goalSide) <= 0.18;
+  }
+  const fivePlayers = false;
+  const mid = Math.floor(N / 2);
+  if (side === 'bottom') return r === 0;
+  if (side === 'top') return r === N - 1;
+  if (side === 'left') return c === N - 1;
+  if (side === 'right') return c === 0;
+  if (side === 'top-left') return false;
   return false;
 }
 
@@ -227,7 +853,7 @@ function computeGoalDistances(side) {
   const queue = [];
   for (let r = 0; r < N; r++) {
     for (let c = 0; c < N; c++) {
-      if (isGoalCell(side, r, c)) { dist[r][c] = 0; queue.push([r, c]); }
+      if (isPlayableCell(r, c) && isGoalCell(side, r, c)) { dist[r][c] = 0; queue.push([r, c]); }
     }
   }
   let qi = 0;
@@ -245,19 +871,29 @@ function isCellOccupied(r, c, excludePlayerId = null) {
 }
 
 function getValidMoveCells(player) {
-  return neighborsOpen(player.row, player.col).filter(([r, c]) => !isCellOccupied(r, c, player.id));
+  const steps = player.chaosBonusSteps || 1;
+  if (isChaosMode() && steps > 1) return getChaosReachableCells(player, steps);
+  return getMovementNeighbors(player, player.row, player.col).filter(([r, c]) => !isCellOccupied(r, c, player.id));
 }
 
-function movePawn(player, r, c) { player.row = r; player.col = c; }
+function movePawn(player, r, c) {
+  const changed = player.row !== r || player.col !== c;
+  player.row = r; player.col = c;
+  if (changed) { playSound('move'); emitCosmeticEffect('move', player); }
+}
 
 function getWallEdges(i, j, orientation) {
   if (orientation === 'H') { return [ edgeKey(i, j, i + 1, j), edgeKey(i, j + 1, i + 1, j + 1) ]; } 
   else { return [ edgeKey(i, j, i, j + 1), edgeKey(i + 1, j, i + 1, j + 1) ]; }
 }
 
-function canPlaceWall(player, i, j, orientation) {
-  if (player.wallsLeft <= 0) return { ok: false, reason: 'Plus aucune barrière disponible.' };
+function canPlaceWall(player, i, j, orientation, freeWall = false) {
+  if (player.wallsLeft <= 0 && !freeWall) return { ok: false, reason: 'Plus aucune barrière disponible.' };
   if (i < 0 || i > N - 2 || j < 0 || j > N - 2) return { ok: false, reason: 'Position invalide.' };
+  if (isPentagonMode()) {
+    const requiredCells = orientation === 'H' ? [[i,j],[i,j+1],[i+1,j],[i+1,j+1]] : [[i,j],[i+1,j],[i,j+1],[i+1,j+1]];
+    if (!requiredCells.every(([r,c]) => isPlayableCell(r,c))) return { ok: false, reason: 'Cette barrière est hors du plateau.' };
+  }
   if (state.jointOrientations.has(`${i},${j}`)) return { ok: false, reason: 'Il y a déjà une barrière ici.' };
 
   const edges = getWallEdges(i, j, orientation);
@@ -271,25 +907,37 @@ function canPlaceWall(player, i, j, orientation) {
   return { ok: true, edges };
 }
 
-function placeWall(player, i, j, orientation) {
-  const check = canPlaceWall(player, i, j, orientation);
+function placeWall(player, i, j, orientation, freeWall = false) {
+  const check = canPlaceWall(player, i, j, orientation, freeWall);
   if (!check.ok) return false;
   check.edges.forEach(e => state.walls.add(e));
   state.jointOrientations.set(`${i},${j}`, orientation);
-  player.wallsLeft -= 1;
+  if (!freeWall) player.wallsLeft -= 1;
   renderWall(i, j, orientation);
+  playSound('wall');
   updatePlayersHUD();
-
-  // Seules les barrières posées par le joueur humain comptent pour les succès.
-  if (player.isHuman) {
-    const achData = loadAchievementsData();
-    achData.wallsPlaced += 1;
-    saveAchievementsData(achData);
-    checkThresholdAchievements();
-  }
-
   return true;
 }
+
+
+/* ============================================================
+   AUDIO — fichiers WAV locaux
+   ============================================================ */
+const AUDIO_KEY = 'quoridor4_audio_settings';
+let audioEnabled = true;
+let audioVolume = 0.65;
+const audioBank = {};
+const AUDIO_FILES = {click:'sounds/click.wav',move:'sounds/move.wav',wall:'sounds/wall.wav',turn:'sounds/turn.wav',card:'sounds/card.wav',pack:'sounds/pack.wav',win:'sounds/win.wav',lose:'sounds/lose.wav',test:'sounds/test.wav'};
+function loadAudioSettings(){try{const raw=JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}');audioEnabled=raw.enabled!==false;audioVolume=Number.isFinite(raw.volume)?Math.max(0,Math.min(1,raw.volume)):0.65;}catch(_){}}
+function saveAudioSettings(){try{localStorage.setItem(AUDIO_KEY,JSON.stringify({enabled:audioEnabled,volume:audioVolume}));}catch(_) {}}
+function preloadAudio(){Object.entries(AUDIO_FILES).forEach(([name,src])=>{const a=new Audio(src);a.preload='auto';a.volume=audioVolume;audioBank[name]=a;});}
+function playSound(name){if(!audioEnabled)return;const base=audioBank[name];if(!base)return;try{const a=base.cloneNode(true);a.volume=audioVolume;a.currentTime=0;const p=a.play();if(p&&p.catch)p.catch(()=>{});}catch(_) {}}
+function testAudio(){if(!audioEnabled){audioEnabled=true;saveAudioSettings();updateAudioControls();}playSound('test');}
+function updateAudioControls(){const toggle=document.getElementById('audio-toggle'),slider=document.getElementById('audio-volume'),label=document.getElementById('audio-volume-label');if(toggle){toggle.textContent=audioEnabled?'🔊 Sons activés':'🔇 Sons désactivés';toggle.classList.toggle('selected',audioEnabled);}if(slider)slider.value=Math.round(audioVolume*100);if(label)label.textContent=Math.round(audioVolume*100)+'%';}
+function toggleAudio(){audioEnabled=!audioEnabled;saveAudioSettings();updateAudioControls();if(audioEnabled)playSound('click');}
+function setAudioVolume(v){audioVolume=Math.max(0,Math.min(1,Number(v)/100));saveAudioSettings();Object.values(audioBank).forEach(a=>a.volume=audioVolume);updateAudioControls();}
+loadAudioSettings();
+preloadAudio();
 
 /* ============================================================
    5. TOURS DE JEU & IA BOTS
@@ -299,26 +947,34 @@ function startGame() {
   uiLocked = false;
   showScreen('game');
   state = createNewGameState();
+  const frame = document.getElementById('board-frame');
+  if (frame) { frame.classList.toggle('mode-5', state.players.length === 5); frame.classList.toggle('mode-chaos', state.chaos); }
+  applyBoardTheme();
   buildBoardDOM();
+  renderChaosSpecialCells();
   document.getElementById('players-hud').innerHTML = ''; 
   renderPawns();
   updateTrophyDisplay();
   updateCoinDisplay();
   updatePlayersHUD();
+  updateGoalBarsDisplay();
+  renderCardBar();
+  renderEmoteBar();
   updateTurnIndicator();
   clearWallsFromDOM();
   setMode('move');
   hideEndModal();
-  showMessage('');
+  showMessage(state.chaos ? '🌀 MODE CHAOS — Les cases spéciales peuvent tout changer !' : '');
   beginTurn();
 }
 
 function beginTurn() {
   if (state.gameOver) return;
-  state.turnCount = (state.turnCount || 0) + 1;
   const player = currentPlayer();
   updateTurnIndicator();
   updatePlayersHUD();
+  renderCardBar();
+  if (player.isHuman) playSound('turn');
 
   if (player.isHuman) { setMode('move'); refreshHighlights(); } 
   else { clearHighlights(); setTimeout(() => runBotTurn(player), CONFIG.BOT_MOVE_DELAY_MS); }
@@ -327,7 +983,11 @@ function beginTurn() {
 function endTurn() {
   if (state.gameOver) return;
   clearHighlights();
+  if (state.extraTurnForId === currentPlayer().id) { state.extraTurnForId = null; beginTurn(); return; }
+  if (state.extraTurn && currentPlayer().isHuman) { state.extraTurn = false; beginTurn(); return; }
   state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+  const next = currentPlayer();
+  if (next.skipNextTurn) { next.skipNextTurn = false; showMessage(`🚫 ${next.isHuman?'Tu':next.name} passes son tour !`,2200); state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length; }
   beginTurn();
 }
 
@@ -362,7 +1022,10 @@ function botTryMove(player, difficulty = getDifficultyInfo()) {
   if (difficulty.moveRandomness > 0 && Math.random() < difficulty.moveRandomness) {
     const [r, c] = candidates[Math.floor(Math.random() * candidates.length)];
     movePawn(player, r, c);
+    if (player.wallPassMoves) player.wallPassMoves = 0;
     renderPawns();
+    if (checkWinAfterMove(player)) return true;
+    resolveChaosCell(player);
     checkWinAfterMove(player);
     return true;
   }
@@ -379,8 +1042,18 @@ function botTryMove(player, difficulty = getDifficultyInfo()) {
       .sort((a, b) => neighborsOpen(b[0], b[1]).length - neighborsOpen(a[0], a[1]).length)[0];
   }
 
+  if (isChaosMode() && player.chaosBonusSteps > 1) {
+    const reachable = getChaosReachableCells(player, player.chaosBonusSteps);
+    if (reachable.length) {
+      reachable.sort((a,b)=>dist[a[0]][a[1]]-dist[b[0]][b[1]]); choice = reachable[0];
+    }
+    player.chaosBonusSteps = 0;
+  }
+  if (player.wallPassMoves) player.wallPassMoves = 0;
   movePawn(player, choice[0], choice[1]);
   renderPawns();
+  if (checkWinAfterMove(player)) return true;
+  resolveChaosCell(player);
   checkWinAfterMove(player);
   return true;
 }
@@ -551,8 +1224,6 @@ function addTrophies(delta) {
   if (newRank.min > oldRank.min) {
     showRankUpNotification(newRank);
   }
-
-  checkThresholdAchievements();
 }
 
 function addCoins(delta) {
@@ -570,26 +1241,12 @@ function addCoins(delta) {
 
 // Fonction globale pour récupérer une récompense depuis la route
 window.claimTrophyReward = function(req, amount, btnEl) {
-  let claimed = loadClaimedRewards();
-  if (claimed.includes(req)) return; // Sécurité double clic
-  
+  const claimed = loadClaimedRewards();
+  if (claimed.includes(req)) return;
   claimed.push(req);
   localStorage.setItem(CONFIG.CLAIMED_REWARDS_KEY, JSON.stringify(claimed));
-  
-  // Ajout des pièces
   addCoins(amount);
-  
-  // Animation visuelle de la route
-  const trCoinEl = document.getElementById('tr-coin-count');
-  if(trCoinEl) {
-    trCoinEl.textContent = `🪙 ${loadCoins()}`;
-    trCoinEl.classList.remove('pop-anim');
-    void trCoinEl.offsetWidth; // Force le reflow pour relancer l'animation
-    trCoinEl.classList.add('pop-anim');
-  }
-  
-  const parent = btnEl.parentElement;
-  parent.innerHTML = `<div class="tr-claimed pop-anim">✅ Récupérée</div>`;
+  openMenuPanel('trophies');
 };
 
 
@@ -609,18 +1266,23 @@ function loadShop() {
   const raw = localStorage.getItem(CONFIG.SHOP_KEY);
   let shop;
   if (!raw) {
-    shop = { owned: ['classic'], equipped: 'classic' };
+    shop = { owned: ['classic'], equipped: 'classic', effectOwned: ['trail'], effectEquipped: 'trail' };
   } else {
     try {
       const parsed = JSON.parse(raw);
       shop = {
         owned: Array.isArray(parsed.owned) ? parsed.owned.slice() : ['classic'],
         equipped: typeof parsed.equipped === 'string' ? parsed.equipped : 'classic',
+        effectOwned: Array.isArray(parsed.effectOwned) ? parsed.effectOwned.slice() : ['trail'],
+        effectEquipped: typeof parsed.effectEquipped === 'string' ? parsed.effectEquipped : 'trail',
       };
     } catch {
-      shop = { owned: ['classic'], equipped: 'classic' };
+      shop = { owned: ['classic'], equipped: 'classic', effectOwned: ['trail'], effectEquipped: 'trail' };
     }
   }
+  if (!Array.isArray(shop.effectOwned)) shop.effectOwned = ['trail'];
+  if (!shop.effectOwned.includes('trail')) shop.effectOwned.unshift('trail');
+  if (!EFFECTS.some(e => e.id === shop.effectEquipped) || !shop.effectOwned.includes(shop.effectEquipped)) shop.effectEquipped = 'trail';
   // Le skin Classique doit toujours être possédé, quoi qu'il arrive.
   if (!shop.owned.includes('classic')) shop.owned.unshift('classic');
   // Sécurité : si le skin équipé sauvegardé n'est plus valide/possédé, on revient au Classique.
@@ -640,8 +1302,11 @@ function getEquippedSkin() {
 // N'est utilisé QUE pour le pion du joueur humain (voir renderPawns) :
 // les bots ne sont jamais concernés par cette fonction.
 function applyPawnSkin(pawnEl, skin) {
-  pawnEl.style.background = skin.background;
+  pawnEl.className = 'pawn pawn-skin pawn-skin-' + (skin.shape || 'classic');
+  pawnEl.style.background = skin.bg || 'var(--player-0)';
+  pawnEl.style.border = '2px solid rgba(255,255,255,0.85)';
   pawnEl.style.setProperty('--pawn-glow', skin.glow ? `0 0 14px ${skin.glow}` : '0 0 0 rgba(0,0,0,0)');
+      pawnEl.style.removeProperty('--pawn-icon');
 }
 
 let shopFeedbackTimeout = null;
@@ -700,31 +1365,91 @@ function buildShopCardHTML(skin, shop) {
   const isOwned = shop.owned.includes(skin.id);
   const isEquipped = shop.equipped === skin.id;
   const priceLabel = skin.price === 0 ? 'Gratuit' : `🪙 ${skin.price}`;
-  const glowStyle = skin.glow ? ` box-shadow:0 0 14px ${skin.glow}, 0 3px 6px rgba(0,0,0,0.35);` : '';
+  const glowStyle = `${skin.glow ? `box-shadow:0 0 14px ${skin.glow}, 0 3px 6px rgba(0,0,0,0.35);` : ''} --pawn-icon:${JSON.stringify(skin.icon || '')};`;
 
   let actionHTML;
-  if (isEquipped) {
-    actionHTML = `<div class="shop-badge equipped">✓ ÉQUIPÉ</div>`;
-  } else if (isOwned) {
-    actionHTML = `<button class="shop-action-btn equip-btn" onclick="equipSkinFromShop('${skin.id}')">ÉQUIPER</button>`;
-  } else {
-    actionHTML = `<button class="shop-action-btn buy-btn" onclick="buySkinFromShop('${skin.id}')">ACHETER</button>`;
-  }
+  if (isEquipped) actionHTML = `<div class="shop-badge equipped">✓ ÉQUIPÉ</div>`;
+  else if (isOwned) actionHTML = `<button class="shop-action-btn equip-btn" onclick="equipSkinFromShop('${skin.id}')">ÉQUIPER</button>`;
+  else actionHTML = `<button class="shop-action-btn buy-btn" onclick="buySkinFromShop('${skin.id}')">ACHETER</button>`;
 
   return `
     <div class="shop-card ${isOwned ? 'owned' : ''} ${isEquipped ? 'equipped' : ''}" id="shop-card-${skin.id}">
-      <div class="shop-pawn-preview" style="background:${skin.background};${glowStyle}"></div>
+      <div class="shop-pawn-preview pawn-skin pawn-skin-${skin.shape || 'classic'}" style="background:${skin.bg || 'var(--player-0)'};${glowStyle}"><span class="shop-pawn-icon">${skin.icon || ''}</span></div>
       <div class="shop-card-name">${skin.name.toUpperCase()}</div>
       <div class="shop-card-price">${priceLabel}</div>
       ${actionHTML}
-    </div>
-  `;
+    </div>`;
 }
+
+function buildBoardThemeCardHTML(theme, shop) {
+  const owned = Array.isArray(shop.boardOwned) && shop.boardOwned.includes(theme.id);
+  const equipped = loadBoardTheme() === theme.id;
+  const priceLabel = theme.price === 0 ? 'Gratuit' : `🪙 ${theme.price}`;
+  let actionHTML;
+  if (equipped) actionHTML = `<div class="shop-badge equipped">✓ ÉQUIPÉ</div>`;
+  else if (owned) actionHTML = `<button class="shop-action-btn equip-btn" onclick="equipBoardThemeFromShop('${theme.id}')">ÉQUIPER</button>`;
+  else actionHTML = `<button class="shop-action-btn buy-btn" onclick="buyBoardThemeFromShop('${theme.id}')">ACHETER</button>`;
+
+  return `
+    <div class="board-theme-card ${owned ? 'owned' : ''} ${equipped ? 'equipped' : ''}">
+      <div class="theme-preview theme-${theme.preview}">
+        <div class="theme-preview-cells"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <span class="theme-preview-icon">${theme.icon}</span>
+      </div>
+      <div class="shop-card-name">${theme.name.toUpperCase()}</div>
+      <div class="theme-description">${theme.desc}</div>
+      <div class="shop-card-price">${priceLabel}</div>
+      ${actionHTML}
+    </div>`;
+}
+
+function getEquippedEffect(){ const shop=loadShop(); return EFFECTS.find(e=>e.id===shop.effectEquipped)||EFFECTS[0]; }
+function effectOwned(id){ const s=loadShop(); return s.effectOwned.includes(id); }
+window.buyEffectFromShop=function(id){ const e=EFFECTS.find(x=>x.id===id); if(!e)return; const s=loadShop(); if(s.effectOwned.includes(id))return; if(loadCoins()<e.price){showShopFeedback('🪙 Jetons insuffisants',true);return;} addCoins(-e.price); s.effectOwned.push(id); saveShop(s); showShopFeedback(`✨ ${e.name} acheté !`,false); renderShopPanel(); };
+window.equipEffectFromShop=function(id){ const s=loadShop(); if(!s.effectOwned.includes(id))return; s.effectEquipped=id; saveShop(s); renderShopPanel(); };
+function buildEffectCardHTML(e,shop){
+  const owned=shop.effectOwned.includes(e.id), equipped=shop.effectEquipped===e.id;
+  const action=equipped?'<div class="shop-badge equipped">✓ ÉQUIPÉ</div>':owned?`<button class="shop-action-btn equip-btn effect-action" onclick="equipEffectFromShop('${e.id}')">ÉQUIPER</button>`:`<button class="shop-action-btn buy-btn effect-action" onclick="buyEffectFromShop('${e.id}')">ACHETER</button>`;
+  const fx=`<div class="preview-fx fx-${e.id}"><i></i><i></i><i></i><i></i><i></i></div>`;
+  return `<div class="effect-shop-card ${owned?'owned':''} ${equipped?'equipped':''}"><div class="effect-preview effect-${e.id}"><div class="preview-pawn"></div>${fx}</div><div class="effect-rarity">${e.rarity}</div><div class="effect-shop-name">${e.name}</div><div class="effect-shop-desc">${e.desc}</div><div class="effect-price">${e.price?'🪙 '+e.price:'Gratuit'}</div>${action}</div>`;
+}
+function emitCosmeticEffect(type, player){ if(!player || !player.isHuman)return; const board=boardEl(); if(!board)return; const el=document.getElementById('pawn-'+player.id); if(!el)return; const effect=getEquippedEffect(); if(!effect)return; if(type==='card' && effect.id!=='portal') return; if(type==='move' && !['trail','spark','lightning','inferno','blizzard','galaxy','royal'].includes(effect.id)) return; const count={trail:4,spark:8,lightning:5,portal:10,inferno:12,blizzard:12,galaxy:14,royal:16}[effect.id]||6; const rect=board.getBoundingClientRect(), pr=el.getBoundingClientRect(); const bx=pr.left-rect.left+pr.width/2, by=pr.top-rect.top+pr.height/2; if(effect.id==='portal'||effect.id==='royal') { const ring=document.createElement('div'); ring.className='effect-ripple'; ring.style.left=bx+'px'; ring.style.top=by+'px'; ring.style.width=pr.width*.8+'px'; ring.style.height=pr.height*.8+'px'; ring.style.borderColor=effect.color; board.appendChild(ring); setTimeout(()=>ring.remove(),600); }
+ const specialMap={lightning:'fx-lightning-real',portal:'fx-portal-real',inferno:'fx-inferno-real',blizzard:'fx-blizzard-real',galaxy:'fx-galaxy-real',royal:'fx-royal-real'};
+ if(specialMap[effect.id]) {
+   const special=document.createElement('div');
+   special.className='effect-special '+specialMap[effect.id];
+   special.style.left=bx+'px'; special.style.top=by+'px';
+   board.appendChild(special);
+   setTimeout(()=>special.remove(),1100);
+ }
+ for(let i=0;i<count;i++){ const p=document.createElement('div'); p.className='effect-particle '+(effect.id==='galaxy'?'star':''); const size=effect.id==='royal'?5+Math.random()*5:4+Math.random()*5; p.style.width=size+'px';p.style.height=size+'px';p.style.background=effect.color; p.style.boxShadow=`0 0 8px ${effect.color}`; const ang=Math.random()*Math.PI*2, dist=12+Math.random()*24; p.style.left=bx+'px';p.style.top=by+'px';p.style.setProperty('--dx',Math.cos(ang)*dist+'px');p.style.setProperty('--dy',Math.sin(ang)*dist+'px'); board.appendChild(p); setTimeout(()=>p.remove(),700); }
+}
+
+function buildComingSoonShopHTML(icon, title, text) {
+  return `<div class="shop-coming-soon"><div class="coming-icon">${icon}</div><h3>${title}</h3><p>${text}</p><span>🚧 Bientôt disponible</span></div>`;
+}
+
+window.setShopCategory = function(category) {
+  shopCategory = category;
+  renderShopPanel();
+};
 
 function buildShopHTML() {
   const shop = loadShop();
+  shop.boardOwned = Array.isArray(shop.boardOwned) ? shop.boardOwned : ['classic'];
+  if (!shop.boardOwned.includes('classic')) shop.boardOwned.unshift('classic');
   const coins = loadCoins();
-  const cardsHTML = PAWN_SKINS.map(skin => buildShopCardHTML(skin, shop)).join('');
+
+  let content = '';
+  if (shopCategory === 'pawns') {
+    content = `<div class="shop-grid">${PAWN_SKINS.map(skin => buildShopCardHTML(skin, shop)).join('')}</div>`;
+  } else if (shopCategory === 'boards') {
+    content = `<div class="shop-grid board-theme-grid">${BOARD_THEMES.map(theme => buildBoardThemeCardHTML(theme, shop)).join('')}</div>`;
+  } else if (shopCategory === 'effects') {
+    content = `<div class="effect-grid">${EFFECTS.map(e=>buildEffectCardHTML(e,shop)).join('')}</div>`;
+  } else {
+    content = `<div class="emote-shop-note">🎉 <b>Équipe jusqu’à 4 emotes</b> puis utilise-les pendant la partie.</div><div class="emote-grid">${EMOTES.map(e=>buildEmoteCardHTML(e,loadEmotes())).join('')}</div>`;
+  }
 
   return `
     <div class="shop-header">
@@ -732,8 +1457,14 @@ function buildShopHTML() {
       <h2>🛍️ Boutique</h2>
       <div class="shop-balance">🪙 <span id="shop-coin-count">${coins}</span></div>
     </div>
+    <div class="shop-tabs" role="tablist">
+      <button class="shop-tab ${shopCategory === 'pawns' ? 'active' : ''}" onclick="setShopCategory('pawns')">🧍 Pions</button>
+      <button class="shop-tab ${shopCategory === 'boards' ? 'active' : ''}" onclick="setShopCategory('boards')">🗺️ Plateaux</button>
+      <button class="shop-tab ${shopCategory === 'effects' ? 'active' : ''}" onclick="setShopCategory('effects')">✨ Effets</button>
+      <button class="shop-tab ${shopCategory === 'emotes' ? 'active' : ''}" onclick="setShopCategory('emotes')">🎉 Emotes</button>
+    </div>
     <div id="shop-feedback" class="shop-feedback"></div>
-    <div class="shop-grid">${cardsHTML}</div>
+    ${content}
   `;
 }
 
@@ -743,240 +1474,9 @@ function renderShopPanel() {
 }
 
 
-/* ============================================================
-   6ter. SUCCÈS / DÉFIS
-   ============================================================
-   Système entièrement séparé : il ne modifie ni les règles du
-   jeu, ni l'IA, ni les trophées/rangs/Route des trophées. Il ne
-   fait que LIRE ces systèmes (loadTrophies, loadStats) pour
-   détecter des conditions, et réutilise uniquement la monnaie
-   🪙 Jetons déjà existante (addCoins) pour les récompenses.
-   ============================================================ */
-
-// Définition des 10 succès de la V1.
-// - "goal" est l'objectif numérique utilisé pour la barre de progression.
-// - "getProgress" calcule la progression actuelle à partir des données de
-//   succès (walls posées), des statistiques de parties et des trophées.
-// - "noProgress" désigne les succès binaires (verrouillé / débloqué) qui ne
-//   se prêtent pas à une barre de progression classique : ils sont
-//   débloqués directement au moment de l'évènement qui les déclenche.
-const ACHIEVEMENTS = [
-  {
-    id: 'first_wall', icon: '🧱', name: 'PREMIÈRE BARRIÈRE',
-    desc: 'Placer sa première barrière.', reward: 50, goal: 1,
-    getProgress: (data) => data.wallsPlaced
-  },
-  {
-    id: 'architect', icon: '🧱', name: 'ARCHITECTE',
-    desc: 'Placer 50 barrières au total.', reward: 150, goal: 50,
-    getProgress: (data) => data.wallsPlaced
-  },
-  {
-    id: 'first_win', icon: '🎮', name: 'PREMIÈRE VICTOIRE',
-    desc: 'Gagner sa première partie.', reward: 100, goal: 1,
-    getProgress: (data, stats) => stats.wins
-  },
-  {
-    id: 'win_streak', icon: '🔥', name: 'EN SÉRIE',
-    desc: 'Gagner 3 parties consécutives.', reward: 200, goal: 3,
-    getProgress: (data, stats) => stats.currentStreak
-  },
-  {
-    id: 'trophy_250', icon: '🏆', name: 'PETIT CHAMPION',
-    desc: 'Atteindre 250 trophées.', reward: 250, goal: 250,
-    getProgress: (data, stats, trophies) => trophies
-  },
-  {
-    id: 'trophy_500', icon: '💎', name: 'GRIMPEUR',
-    desc: 'Atteindre 500 trophées.', reward: 400, goal: 500,
-    getProgress: (data, stats, trophies) => trophies
-  },
-  {
-    id: 'beat_hard', icon: '🤖', name: 'SANS PEUR',
-    desc: "Battre l'IA en difficulté Difficile au moins une fois.", reward: 300, goal: 1,
-    noProgress: true
-  },
-  {
-    id: 'beat_expert', icon: '💀', name: 'CAUCHEMAR',
-    desc: "Battre l'IA en difficulté Expert au moins une fois.", reward: 500, goal: 1,
-    noProgress: true
-  },
-  {
-    id: 'fast_win', icon: '⚡', name: 'VICTOIRE RAPIDE',
-    desc: 'Gagner une partie en 20 tours ou moins.', reward: 300, goal: 1,
-    noProgress: true
-  },
-  {
-    id: 'trophy_1200', icon: '👑', name: 'MAÎTRE',
-    desc: 'Atteindre 1200 trophées.', reward: 1000, goal: 1200,
-    getProgress: (data, stats, trophies) => trophies
-  },
-];
-
-function getAchievementDef(id) { return ACHIEVEMENTS.find(a => a.id === id); }
-
-// Charge la progression sauvegardée des succès (succès débloqués +
-// compteur de barrières posées par le joueur). Toujours renvoie une
-// structure valide, même si rien n'a encore été sauvegardé.
-function loadAchievementsData() {
-  const raw = localStorage.getItem(CONFIG.ACHIEVEMENTS_KEY);
-  if (!raw) return { unlocked: [], wallsPlaced: 0 };
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      unlocked: Array.isArray(parsed.unlocked) ? parsed.unlocked.slice() : [],
-      wallsPlaced: Number(parsed.wallsPlaced) || 0
-    };
-  } catch {
-    return { unlocked: [], wallsPlaced: 0 };
-  }
-}
-
-function saveAchievementsData(data) {
-  localStorage.setItem(CONFIG.ACHIEVEMENTS_KEY, JSON.stringify(data));
-}
-
-// Débloque un succès une seule fois : donne la récompense, sauvegarde
-// l'état "débloqué" et met en file d'attente la notification visuelle.
-// Toute tentative de rappel sur un succès déjà débloqué est ignorée,
-// ce qui empêche d'obtenir plusieurs fois la même récompense (y compris
-// après un rechargement de la page).
-function unlockAchievement(id) {
-  const data = loadAchievementsData();
-  if (data.unlocked.includes(id)) return false;
-
-  const def = getAchievementDef(id);
-  if (!def) return false;
-
-  data.unlocked.push(id);
-  saveAchievementsData(data);
-
-  addCoins(def.reward);
-  queueAchievementNotification(def);
-
-  // Si le panneau des succès est actuellement ouvert, on le rafraîchit.
-  const panel = document.getElementById('menu-panel');
-  const body = document.getElementById('menu-panel-body');
-  if (panel && body && !panel.classList.contains('hidden') && body.querySelector('.ach-list')) {
-    body.innerHTML = buildAchievementsHTML();
-  }
-
-  return true;
-}
-
-// Parcourt tous les succès à progression numérique et débloque ceux dont
-// la condition est atteinte. Les succès binaires (noProgress) sont
-// débloqués directement au moment de leur évènement déclencheur (victoire
-// contre l'IA Difficile/Expert, victoire rapide), pas ici.
-function checkThresholdAchievements() {
-  const data = loadAchievementsData();
-  const stats = loadStats();
-  const trophies = loadTrophies();
-
-  ACHIEVEMENTS.forEach(a => {
-    if (a.noProgress) return;
-    if (data.unlocked.includes(a.id)) return;
-    const progress = a.getProgress(data, stats, trophies);
-    if (progress >= a.goal) unlockAchievement(a.id);
-  });
-}
-
-// File d'attente des notifications de succès, pour n'afficher qu'une
-// notification à la fois même si plusieurs succès se débloquent au même
-// moment (ex : une victoire qui fait franchir un palier de trophées).
-let achievementNotificationQueue = [];
-let achievementNotificationShowing = false;
-
-function queueAchievementNotification(def) {
-  achievementNotificationQueue.push(def);
-  processAchievementNotificationQueue();
-}
-
-function processAchievementNotificationQueue() {
-  if (achievementNotificationShowing) return;
-  const next = achievementNotificationQueue.shift();
-  if (!next) return;
-  achievementNotificationShowing = true;
-  showAchievementToast(next);
-}
-
-function showAchievementToast(def) {
-  const container = document.getElementById('achievement-toast-container');
-  if (!container) { achievementNotificationShowing = false; processAchievementNotificationQueue(); return; }
-
-  const toast = document.createElement('div');
-  toast.className = 'achievement-toast';
-  toast.innerHTML = `
-    <div class="achievement-toast-header">🏅 SUCCÈS DÉBLOQUÉ !</div>
-    <div class="achievement-toast-body">
-      <div class="achievement-toast-icon">${def.icon}</div>
-      <div class="achievement-toast-info">
-        <div class="achievement-toast-name">${def.name}</div>
-        <div class="achievement-toast-reward">+${def.reward} 🪙</div>
-      </div>
-    </div>
-  `;
-  container.appendChild(toast);
-
-  requestAnimationFrame(() => toast.classList.add('show'));
-
-  setTimeout(() => {
-    toast.classList.remove('show');
-    toast.classList.add('hide');
-    setTimeout(() => {
-      toast.remove();
-      achievementNotificationShowing = false;
-      processAchievementNotificationQueue();
-    }, 350);
-  }, 2800);
-}
-
-// Construit le HTML de l'écran des succès (liste + progression).
-function buildAchievementsHTML() {
-  const data = loadAchievementsData();
-  const stats = loadStats();
-  const trophies = loadTrophies();
-  const unlockedCount = ACHIEVEMENTS.filter(a => data.unlocked.includes(a.id)).length;
-
-  const cardsHTML = ACHIEVEMENTS.map(a => {
-    const isUnlocked = data.unlocked.includes(a.id);
-
-    let progressHTML = '';
-    if (!a.noProgress) {
-      const rawProgress = a.getProgress(data, stats, trophies);
-      const progress = Math.max(0, Math.min(rawProgress, a.goal));
-      const pct = (progress / a.goal) * 100;
-      progressHTML = `
-        <div class="ach-progress-text">${progress} / ${a.goal}</div>
-        <div class="ach-progress-bar"><div class="ach-progress-fill" style="width:${pct}%;"></div></div>
-      `;
-    }
-
-    const statusHTML = isUnlocked
-      ? `<div class="ach-status unlocked">✅ Débloqué</div>`
-      : `<div class="ach-status locked">🔒 Non débloqué</div>`;
-
-    return `
-      <div class="ach-card ${isUnlocked ? 'unlocked' : 'locked'}">
-        <div class="ach-card-icon">${a.icon}</div>
-        <div class="ach-card-content">
-          <div class="ach-card-name">${a.name}</div>
-          <div class="ach-card-desc">${a.desc}</div>
-          ${progressHTML}
-          ${statusHTML}
-        </div>
-        <div class="ach-card-reward">+${a.reward} 🪙</div>
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <div class="ach-header"><h2>🏅 Succès</h2></div>
-    <div class="ach-summary">${unlockedCount} / ${ACHIEVEMENTS.length} débloqués</div>
-    <div class="ach-list">${cardsHTML}</div>
-  `;
-}
-
+window.selectGameMode = function(count) { setSelectedPlayersCount(count); setGameMode('classic'); openMenuPanel('modes'); };
+window.selectChaosMode = function() { if(loadTrophies() < CONFIG.CHAOS_UNLOCK_TROPHIES) return; setSelectedPlayersCount(4); setGameMode('chaos'); openMenuPanel('modes'); };
+window.selectClassicMode = function() { setGameMode('classic'); openMenuPanel('modes'); };
 
 /* ============================================================
    7. INTERFACE DU MENU
@@ -1019,7 +1519,31 @@ function openMenuPanel(type) {
   const panel = document.getElementById('menu-panel');
   const body = document.getElementById('menu-panel-body');
   
-  if (type === 'trophies') {
+  if (type === 'modes') {
+    const current = getSelectedPlayersCount();
+    body.innerHTML = `
+      <h2>🎮 Modes de jeu</h2>
+      <p class="panel-subtitle">Choisis le nombre de joueurs.</p>
+      <div class="modes-list">
+        ${[
+          [2,'🟢 1 VS 1','Duel à 2 joueurs'],
+          [3,'🔵 1 VS 1 VS 1','Bataille à 3 joueurs'],
+          [4,'🟣 1 VS 1 VS 1 VS 1','Mode classique à 4 joueurs'],
+          [5,'🟠 1 VS 1 VS 1 VS 1 VS 1','Mêlée générale à 5 joueurs']
+        ].map(([n,title,desc]) => `
+          <div class="mode-card ${current===n?'selected':''}">
+            <div class="mode-card-header"><span>${title}</span><span class="mode-players-badge">👥 ${n} joueurs</span></div>
+            <p class="mode-card-desc">${desc}</p>
+            <div class="mode-card-footer"><span></span><button class="mode-select-btn" onclick="selectGameMode(${n})">${current===n?'✓ Actif':'Choisir'}</button></div>
+          </div>`).join('')}
+      </div>
+      <div class="chaos-mode-card ${getGameMode()===CHAOS_MODE?'selected':''}">
+        <div class="chaos-mode-title"><span>🌀 Mode Chaos</span><span class="mode-players-badge">🌀 Spécial</span></div>
+        <p>Des cases spéciales apparaissent sur le plateau et peuvent bouleverser la partie.</p>
+        <div class="chaos-mode-effects"><span>↻ Rejoue</span><span>⇄ Échange</span><span>◈ Mur</span><span>» Turbo</span><span>✦ Téléportation</span></div>
+        ${loadTrophies() >= CONFIG.CHAOS_UNLOCK_TROPHIES ? `<div class="mode-card-footer"><span class="chaos-unlock-ok">🔓 Débloqué</span><button class="mode-select-btn chaos-select-btn" onclick="selectChaosMode()">${getGameMode()===CHAOS_MODE?'✓ Actif':'Jouer'}</button></div>` : `<div class="mode-card-footer"><span class="chaos-unlock-locked">🔒 ${CONFIG.CHAOS_UNLOCK_TROPHIES} 🏆 requis</span><button class="mode-select-btn chaos-select-btn" disabled>Verrouillé</button></div>`}
+      </div>`;
+  } else if (type === 'trophies') {
     const trophies = loadTrophies();
     const coins = loadCoins();
     const claimed = loadClaimedRewards();
@@ -1072,6 +1596,8 @@ function openMenuPanel(type) {
       let actionHTML = '';
       if (!isUnlocked) {
         actionHTML = `<div class="tr-lock">🔒 Encore ${m.req - trophies}</div>`;
+      } else if (m.modeUnlock) {
+        actionHTML = `<div class="tr-reached">🌀 ${m.modeName} débloqué</div>`;
       } else {
         if (m.reward > 0) {
           if (isClaimed) actionHTML = `<div class="tr-claimed">✅ Récupérée</div>`;
@@ -1086,6 +1612,7 @@ function openMenuPanel(type) {
           <div class="tr-card-req">🏆 ${m.req}</div>
           <div class="tr-card-content">
             ${m.rank ? `<div class="tr-rank">${m.icon} ${m.rank}</div>` : ''}
+            ${m.modeUnlock ? `<div class="tr-rank chaos-road-unlock">🌀 ${m.modeName}</div>` : ''}
             ${m.reward > 0 ? `<div class="tr-reward">+${m.reward} 🪙</div>` : ''}
           </div>
           <div class="tr-card-action">${actionHTML}</div>
@@ -1096,6 +1623,8 @@ function openMenuPanel(type) {
 
     body.innerHTML = headerHTML + progressHTML + listHTML;
     
+  } else if (type === 'cards') {
+    body.innerHTML = buildCardCollectionHTML();
   } else if (type === 'stats') {
     const stats = loadStats();
     const winRate = stats.games ? Math.round((stats.wins / stats.games) * 100) : 0;
@@ -1120,8 +1649,6 @@ function openMenuPanel(type) {
     `;
   } else if (type === 'shop') {
     body.innerHTML = buildShopHTML();
-  } else if (type === 'achievements') {
-    body.innerHTML = buildAchievementsHTML();
   } else {
     const currentDifficulty = getDifficultyKey();
     const cards = Object.entries(DIFFICULTIES).map(([key, d]) => `
@@ -1136,10 +1663,18 @@ function openMenuPanel(type) {
       </button>
     `).join('');
     body.innerHTML = `
-      <h2>⚙️ Difficulté</h2>
+      <h2>⚙️ Paramètres</h2>
       <p class="difficulty-note">La difficulté change les bots et les récompenses. Le choix s'applique à la prochaine partie.</p>
       <div class="difficulty-list">${cards}</div>
+      <div class="audio-settings">
+        <h3>🔊 Audio</h3>
+        <button id="audio-toggle" class="audio-toggle-btn" onclick="toggleAudio()"></button>
+        <button class="audio-test-btn" onclick="testAudio()">🔊 Tester le son</button>
+        <div class="audio-volume-row"><span>Volume</span><strong id="audio-volume-label"></strong></div>
+        <input id="audio-volume" class="audio-volume-slider" type="range" min="0" max="100" step="1" oninput="setAudioVolume(this.value)">
+      </div>
     `;
+    updateAudioControls();
   }
   panel.classList.remove('hidden');
 }
@@ -1160,17 +1695,21 @@ function buildBoardDOM() {
     for (let c = 0; c < N; c++) {
       const { x, y } = cellPixelPos(r, c);
       const cell = document.createElement('div');
-      cell.className = 'cell' + ((r + c) % 2 === 1 ? ' cell-alt' : '');
+      cell.className = 'cell' + ((r + c) % 2 === 1 ? ' cell-alt' : '') + (!isPlayableCell(r, c) ? ' cell-outside' : '');
       cell.style.left = x + 'px'; cell.style.top = y + 'px';
       cell.style.width = CONFIG.CELL_SIZE + 'px'; cell.style.height = CONFIG.CELL_SIZE + 'px';
       cell.dataset.row = r; cell.dataset.col = c;
-      cell.addEventListener('click', () => onCellClick(r, c));
+      if (isPlayableCell(r, c)) cell.addEventListener('click', () => onCellClick(r, c));
       board.appendChild(cell);
     }
   }
 
   for (let i = 0; i < N - 1; i++) {
     for (let j = 0; j < N - 1; j++) {
+      if (isPentagonMode()) {
+        const around = [[i,j],[i,j+1],[i+1,j],[i+1,j+1]];
+        if (!around.every(([r,c]) => isPlayableCell(r,c))) continue;
+      }
       const rect = jointHitboxRect(i, j);
       const hit = document.createElement('div'); hit.className = 'joint-hitbox';
       hit.style.left = rect.x + 'px'; hit.style.top = rect.y + 'px';
@@ -1197,7 +1736,8 @@ function renderPawns() {
     let pawnEl = document.getElementById('pawn-' + player.id);
     if (!pawnEl) {
       pawnEl = document.createElement('div'); pawnEl.id = 'pawn-' + player.id; pawnEl.className = 'pawn';
-      const pawnSize = CONFIG.CELL_SIZE * 0.72;
+      const pawnCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
+      const pawnSize = pawnCellSize * 0.72;
       pawnEl.style.width = pawnSize + 'px'; pawnEl.style.height = pawnSize + 'px';
       boardEl().appendChild(pawnEl);
     }
@@ -1207,16 +1747,43 @@ function renderPawns() {
     if (player.isHuman) {
       applyPawnSkin(pawnEl, getEquippedSkin());
     } else {
+      pawnEl.className = 'pawn';
       pawnEl.style.background = player.color;
+      pawnEl.style.removeProperty('--pawn-icon');
+      pawnEl.style.border = '2px solid rgba(0,0,0,0.18)';
     }
 
     const { x, y } = cellPixelPos(player.row, player.col);
-    const margin = (CONFIG.CELL_SIZE - CONFIG.CELL_SIZE * 0.72) / 2;
-    pawnEl.style.left = (x + margin) + 'px'; pawnEl.style.top = (y + margin) + 'px';
+    const pawnCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
+    const margin = (pawnCellSize - pawnCellSize * 0.72) / 2;
+    const nextLeft = x + margin;
+    const nextTop = y + margin;
+    const prevLeft = parseFloat(pawnEl.style.left);
+    const prevTop = parseFloat(pawnEl.style.top);
+    const hadPosition = Number.isFinite(prevLeft) && Number.isFinite(prevTop);
+    const moved = hadPosition && (Math.abs(prevLeft - nextLeft) > 0.1 || Math.abs(prevTop - nextTop) > 0.1);
+
+    // On fixe immédiatement la destination puis on anime le déplacement avec
+    // transform : cela évite l'effet "téléportation" même quand plusieurs
+    // rendus DOM se produisent pendant le tour.
+    pawnEl.style.left = nextLeft + 'px';
+    pawnEl.style.top = nextTop + 'px';
+    if (moved && typeof pawnEl.animate === 'function') {
+      const dx = prevLeft - nextLeft;
+      const dy = prevTop - nextTop;
+      pawnEl.getAnimations().forEach(a => a.cancel());
+      pawnEl.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px)` },
+          { transform: 'translate(0, 0)' }
+        ],
+        { duration: 360, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'none' }
+      );
+    }
   }
 }
 
-function clearHighlights() { document.querySelectorAll('.cell.valid-move').forEach(el => el.classList.remove('valid-move')); }
+function clearHighlights() { document.querySelectorAll('.cell.valid-move, .cell.vision-path').forEach(el => el.classList.remove('valid-move','vision-path')); }
 
 function refreshHighlights() {
   clearHighlights(); if (state.mode !== 'move' || state.gameOver) return;
@@ -1226,13 +1793,72 @@ function refreshHighlights() {
     const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
     if (cell) cell.classList.add('valid-move');
   }
+  if (state.visionCells && state.visionCells.length) {
+    state.visionCells.forEach(([r,c]) => { const cell=document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`); if(cell) cell.classList.add('vision-path'); });
+  }
 }
 
 function updateTrophyDisplay() { if(state) document.getElementById('trophy-count').textContent = state.trophies; }
 function updateCoinDisplay() { if(state) document.getElementById('coin-count').textContent = state.coins; }
 
+function updateGoalBarsDisplay() {
+  const legacyBars = ['goal-bar-top','goal-bar-bottom','goal-bar-left','goal-bar-right','goal-corner-br'];
+  legacyBars.forEach(id => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', isPentagonMode()); });
+
+  const pentBars = [0,1,2,3,4].map(i => document.getElementById(`pent-goal-${i}`));
+  pentBars.forEach(el => {
+    if (!el) return;
+    el.classList.remove('active-goal','human-goal');
+    el.style.removeProperty('--goal-color');
+    el.style.background = '';
+  });
+
+  if (isPentagonMode()) {
+    state.players.forEach(p => {
+      const goalSide = PENTAGON_GOAL_SIDE[p.pentSide];
+      const el = document.getElementById(`pent-goal-${goalSide}`);
+      if (!el) return;
+      el.classList.add('active-goal');
+      el.style.setProperty('--goal-color', `var(--player-${p.id})`);
+      el.style.background = 'var(--goal-color)';
+      el.title = `Objectif de ${p.name}`;
+      if (p.isHuman) el.classList.add('human-goal');
+    });
+    const human = state.players.find(p => p.isHuman);
+    const label = document.getElementById('pent-goal-label');
+    if (label && human) {
+      label.textContent = `🎯 Ton objectif : côté ${PENTAGON_GOAL_SIDE[human.pentSide] + 1}`;
+    }
+    return;
+  }
+
+  const bars = {
+    top: document.getElementById('goal-bar-top'), bottom: document.getElementById('goal-bar-bottom'),
+    left: document.getElementById('goal-bar-left'), right: document.getElementById('goal-bar-right')
+  };
+  Object.values(bars).forEach(el => {
+    if (!el) return;
+    el.classList.remove('active-goal','human-goal');
+    el.style.removeProperty('--goal-color');
+    el.style.background = '';
+  });
+  const destinationByStart = { bottom:'top', top:'bottom', left:'right', right:'left' };
+  state.players.forEach(p => {
+    const dest = destinationByStart[p.side];
+    if (dest && bars[dest]) {
+      bars[dest].classList.add('active-goal');
+      bars[dest].style.setProperty('--goal-color', `var(--player-${p.id})`);
+      bars[dest].style.background = 'var(--goal-color)';
+      bars[dest].title = `Objectif de ${p.name}`;
+      if (p.isHuman) bars[dest].classList.add('human-goal');
+    }
+  });
+}
+
 function updatePlayersHUD() {
   const container = document.getElementById('players-hud');
+  container.classList.remove('count-2','count-3','count-4','count-5');
+  container.classList.add(`count-${state.players.length}`);
   if (container.children.length === 0) {
     state.players.forEach(player => {
       const chip = document.createElement('div'); chip.id = 'hud-chip-' + player.id; chip.className = 'player-chip';
@@ -1293,6 +1919,8 @@ function showEndModal(humanWon, deltaTrophies, deltaCoins) {
   document.getElementById('coin-change').textContent = `+${deltaCoins} 🪙`;
   
   modal.classList.remove('hidden');
+  modal.classList.remove('victory-modal','defeat-modal');
+  modal.classList.add(humanWon ? 'victory-modal' : 'defeat-modal');
 }
 
 function hideEndModal() { document.getElementById('end-modal').classList.add('hidden'); }
@@ -1311,44 +1939,182 @@ function hideRankUpNotification() { document.getElementById('rank-up-modal').cla
    9. ÉVÉNEMENTS UTILISATEUR
    ============================================================ */
 
+
+function markCardUsed(id) {
+  if (!state || state.cardUsed.has(id)) return false;
+  state.cardUsed.add(id);
+  return true;
+}
+function cardAvailable(id) {
+  return !!state && !state.gameOver && currentPlayer().isHuman && state.cardHand.includes(id) && !state.cardUsed.has(id);
+}
+function renderCardBar() {
+  const bar=document.getElementById('card-bar'); if(!bar || !state) return;
+  bar.innerHTML='';
+  state.cardHand.forEach(id=>{
+    const c=cardById(id); if(!c) return;
+    const used=state.cardUsed.has(id);
+    const btn=document.createElement('button'); btn.className='game-card-btn rarity-'+c.rarity.toLowerCase().replace('é','e').replace('è','e').replace('ê','e')+(used?' used':''); btn.style.setProperty('--card-color',c.color);
+    btn.disabled=used || !currentPlayer().isHuman || state.gameOver;
+    btn.innerHTML=`<span class="game-card-icon">${c.icon}</span><span class="game-card-name">${c.name}</span><span class="game-card-rarity">${c.rarity}</span>`;
+    btn.title=c.desc; btn.addEventListener('click',()=>useCard(id)); bar.appendChild(btn);
+  });
+}
+function resolveCardUse(id) {
+  if(!cardAvailable(id)) return;
+  playSound('card');
+  emitCosmeticEffect('card', currentPlayer());
+  const c=cardById(id); if(!c) return;
+  const player=currentPlayer();
+  const effect=c.effect;
+
+  if(effect==='freewall') {
+    state.pendingFreeWall=true; markCardUsed(id); setMode('wall'); renderCardBar();
+    showMessage('🧱 Barrière gratuite activée : choisis où la poser.',3000); return;
+  }
+  if(effect==='recoverwall') {
+    player.wallsLeft += 1; markCardUsed(id); renderPawns(); renderCardBar();
+    showMessage('📦 +1 barrière récupérée !',2500); return;
+  }
+  if(effect==='fortress') {
+    state.pendingFreeWall=true; player.wallsLeft += 1; markCardUsed(id); setMode('wall'); renderPawns(); renderCardBar();
+    showMessage('🏰 Forteresse : barrière gratuite +1 barrière en réserve.',3500); return;
+  }
+  if(effect==='vision3' || effect==='vision5' || effect==='vision7' || effect==='vision9') {
+    const steps=Number(effect.replace('vision',''));
+    const dist=computeGoalDistances(player.side);
+    state.visionCells=[]; let cur=[player.row,player.col];
+    for(let k=0;k<steps;k++){
+      const opts=neighborsOpen(cur[0],cur[1]).filter(([r,c])=>!isCellOccupied(r,c,player.id)).sort((a,b)=>dist[a[0]][a[1]]-dist[b[0]][b[1]]);
+      if(!opts.length) break; cur=opts[0]; state.visionCells.push(cur);
+    }
+    markCardUsed(id); refreshHighlights(); renderCardBar();
+    showMessage(`👁️ ${state.visionCells.length} cases de ton meilleur chemin sont révélées.`,3000); return;
+  }
+  if(effect==='doubleturn') {
+    markCardUsed(id); state.extraTurn=true; renderCardBar(); showMessage('🔄 Double tour activé !',3000); return;
+  }
+  if(effect==='sprint2' || effect==='jump3' || effect==='jump4' || effect==='jump5' || effect==='momentum' || effect==='legendaryrush') {
+    const maxSteps=effect==='sprint2'?2:effect==='jump3'?3:effect==='jump4'?4:5;
+    let moved=0; let cur=[player.row,player.col];
+    for(let k=0;k<maxSteps;k++){
+      const dist=computeGoalDistances(player.side);
+      const opts=neighborsOpen(cur[0],cur[1]).filter(([r,c])=>!isCellOccupied(r,c,player.id)).sort((a,b)=>dist[a[0]][a[1]]-dist[b[0]][b[1]]);
+      if(!opts.length) break; cur=opts[0]; moved++;
+      if(isGoalCell(player.side,cur[0],cur[1])) break;
+    }
+    if(moved===0){ showMessage('Cette carte ne peut pas être utilisée ici.'); return; }
+    markCardUsed(id); movePawn(player,cur[0],cur[1]); renderPawns(); renderCardBar();
+    if(effect==='momentum' || effect==='legendaryrush') state.extraTurn=true;
+    setTimeout(()=>{ if(checkWinAfterMove(player)) return; resolveChaosCell(player); if(checkWinAfterMove(player)) return; endTurn(); },420); return;
+  }
+}
+
+function runCardActivationAnimation(card, player, callback) {
+  if (!card) { callback(); return; }
+  const existing = document.getElementById('card-activation-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'card-activation-overlay';
+  overlay.className = `card-activation-overlay effect-${card.effect}`;
+  const rarityFx = ['Épique','Légendaire'].includes(card.rarity) ? `
+    <div class="activation-rarity-fx ${card.rarity === 'Légendaire' ? 'fx-legendary' : 'fx-epic'}">
+      <span class="fx-ring ring-1"></span><span class="fx-ring ring-2"></span><span class="fx-ring ring-3"></span>
+      <span class="fx-bolt bolt-a"></span><span class="fx-bolt bolt-b"></span>
+      <span class="fx-wind wind-a"></span><span class="fx-wind wind-b"></span><span class="fx-wind wind-c"></span>
+      <span class="fx-shockwave"></span>
+    </div>` : '';
+  overlay.innerHTML = `
+    <div class="card-activation-backdrop"></div>
+    ${rarityFx}
+    <div class="card-activation-burst burst-a"></div>
+    <div class="card-activation-burst burst-b"></div>
+    <div class="card-activation-spin-frame">
+      <div class="card-activation-spin-ring ring-a"></div>
+      <div class="card-activation-spin-ring ring-b"></div>
+      <div class="card-activation-card">
+        <div class="activation-card-shine"></div>
+        <div class="activation-card-icon">${card.icon}</div>
+        <div class="activation-card-name">${card.name}</div>
+        <div class="activation-card-rarity">${card.rarity}</div>
+      </div>
+    </div>
+    <div class="card-activation-particles">
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  requestAnimationFrame(() => overlay.classList.add('show'));
+  setTimeout(() => {
+    overlay.classList.add('resolve');
+    setTimeout(() => {
+      overlay.remove();
+      callback();
+    }, 230);
+  }, 560);
+}
+
+function useCard(id) {
+  if(!cardAvailable(id)) return;
+  const c=cardById(id);
+  const player=currentPlayer();
+  if(!c || !player) return;
+  uiLocked = true;
+  playSound('card');
+  emitCosmeticEffect('card', player);
+  runCardActivationAnimation(c, player, () => {
+    uiLocked = false;
+    resolveCardUse(id);
+  });
+}
+
+window.useCard=useCard;
+window.toggleAudio=toggleAudio;
+window.setAudioVolume=setAudioVolume;
+window.testAudio=testAudio;
+window.playSound=playSound;
+
 function onCellClick(r, c) {
   if (state.gameOver || state.mode !== 'move' || uiLocked) return;
   const player = currentPlayer(); if (!player.isHuman) return;
   if (!getValidMoveCells(player).some(([vr, vc]) => vr === r && vc === c)) return;
 
-  uiLocked = true; movePawn(player, r, c); renderPawns();
-  setTimeout(() => { uiLocked = false; if (checkWinAfterMove(player)) return; endTurn(); }, 250);
+  uiLocked = true; movePawn(player, r, c);
+  if (player.chaosBonusSteps) player.chaosBonusSteps = 0;
+  if (player.wallPassMoves) player.wallPassMoves = 0;
+  renderPawns();
+  setTimeout(() => { uiLocked = false; if (checkWinAfterMove(player)) return; resolveChaosCell(player); if (checkWinAfterMove(player)) return; endTurn(); }, 420);
 }
 
 function onJointClick(i, j) {
   if (state.gameOver || state.mode !== 'wall' || uiLocked) return;
   const player = currentPlayer(); if (!player.isHuman) return;
 
-  const result = canPlaceWall(player, i, j, state.orientation);
+  const freeWall = !!state.pendingFreeWall;
+  const result = canPlaceWall(player, i, j, state.orientation, freeWall);
   if (!result.ok) { showMessage(result.reason); return; }
 
-  uiLocked = true; placeWall(player, i, j, state.orientation);
+  uiLocked = true;
+  if (freeWall) { state.pendingFreeWall = false; markCardUsed('freewall'); }
+  placeWall(player, i, j, state.orientation, freeWall);
+  renderCardBar();
   setTimeout(() => { uiLocked = false; endTurn(); }, 250);
 }
 
 function endGame(humanWon, winnerName) {
   if (state.gameOver) return; // Sécurité pour empêcher plusieurs exécutions
   state.gameOver = true;
+  playSound(humanWon ? 'win' : 'lose');
+  if (humanWon) emitCosmeticEffect('move', state.players.find(p=>p.isHuman));
   recordResult(humanWon);
   
   const difficulty = getDifficultyInfo();
-  const difficultyKey = getDifficultyKey();
   const deltaTrophies = humanWon ? difficulty.trophiesWin : -difficulty.trophiesLoss;
   const deltaCoins = humanWon ? difficulty.coinsWin : difficulty.coinsLoss;
   
-  addTrophies(deltaTrophies); // met aussi à jour les succès liés aux trophées et aux stats
+  addTrophies(deltaTrophies);
   addCoins(deltaCoins); 
-
-  if (humanWon) {
-    if (difficultyKey === 'hard') unlockAchievement('beat_hard');
-    if (difficultyKey === 'expert') unlockAchievement('beat_expert');
-    if (state.turnCount <= 20) unlockAchievement('fast_win');
-  }
   
   showEndModal(humanWon, deltaTrophies, deltaCoins);
   clearHighlights();
@@ -1359,9 +2125,10 @@ function forfeitGame() { if (!state.gameOver) endGame(false, 'Abandon'); }
 function setupEventListeners() {
   document.getElementById('menu-play-btn').addEventListener('click', startGame);
   document.getElementById('menu-shop-btn').addEventListener('click', () => openMenuPanel('shop'));
+  document.getElementById('menu-cards-btn').addEventListener('click', () => openMenuPanel('cards'));
+  document.getElementById('menu-game-modes-btn').addEventListener('click', () => openMenuPanel('modes'));
   document.getElementById('menu-trophies-btn').addEventListener('click', () => openMenuPanel('trophies'));
   document.getElementById('menu-profile-btn').addEventListener('click', () => openMenuPanel('trophies'));
-  document.getElementById('menu-achievements-btn').addEventListener('click', () => openMenuPanel('achievements'));
   
   document.getElementById('menu-stats-btn').addEventListener('click', () => openMenuPanel('stats'));
   document.getElementById('menu-tutorial-btn').addEventListener('click', () => openMenuPanel('tutorial'));
@@ -1387,9 +2154,12 @@ function setupEventListeners() {
    10. INITIALISATION
    ============================================================ */
 
+
+
 document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('.audio-toggle-btn')) playSound('click'); }, {passive:true});
   setupEventListeners();
+  ensureStarterCards();
   updateMenuDisplays(); // Charge l'affichage correct des monnaies sur l'écran d'accueil
-  checkThresholdAchievements(); // Rattrape les succès déjà atteints par une sauvegarde existante
   showScreen('menu');
 });
