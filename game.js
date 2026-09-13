@@ -32,7 +32,131 @@ const CONFIG = {
   GAME_MODE_KEY: 'quoridor4_game_mode',
   CHAOS_UNLOCK_TROPHIES: 300,
   CHAOS_SPECIAL_COUNT: 8
+
 };
+
+// MODE TEST BOUTIQUE — temporaire avant publication : 50 000 pièces à chaque lancement.
+// À SUPPRIMER avant la version publique pour repartir avec une économie normale.
+localStorage.setItem(CONFIG.COINS_KEY, '50000');
+
+/* ============================================================
+   QUÊTES QUOTIDIENNES
+   ============================================================ */
+const DAILY_QUESTS_KEY = 'quoridor4_daily_quests_v1';
+const DAILY_QUEST_POOL = [
+  { id:'play',    icon:'🎮', name:'Jouer 1 partie', desc:'Termine une partie.', target:1, reward:100, event:'game' },
+  { id:'moves',   icon:'🚶', name:'Faire 8 déplacements', desc:'Déplace ton pion 8 fois.', target:8, reward:120, event:'move' },
+  { id:'walls',   icon:'🧱', name:'Poser 5 barrières', desc:'Pose 5 barrières pendant tes parties.', target:5, reward:150, event:'wall' },
+  { id:'cards',   icon:'🃏', name:'Utiliser 2 cartes', desc:'Utilise 2 cartes pendant tes parties.', target:2, reward:180, event:'card' },
+  { id:'win',     icon:'🏆', name:'Gagner 1 partie', desc:'Remporte une partie.', target:1, reward:250, event:'win' },
+  { id:'quick',   icon:'⚡', name:'Victoire rapide', desc:'Gagne une partie en 25 déplacements ou moins.', target:1, reward:300, event:'quickwin' },
+  { id:'chaos',   icon:'🌀', name:'Jouer en Mode Chaos', desc:'Termine une partie en Mode Chaos.', target:1, reward:220, event:'chaosgame' },
+  { id:'mixed',   icon:'🎯', name:'Varier les plaisirs', desc:'Joue 2 parties.', target:2, reward:200, event:'game' },
+  { id:'wallsandcards', icon:'🔥', name:'Stratège', desc:'Pose 3 barrières et utilise 1 carte.', target:1, reward:280, event:'combo' }
+];
+
+function dailyDateKey(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function dailySeed(str){
+  let h=2166136261;
+  for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); }
+  return h>>>0;
+}
+function getDailyQuestData(){
+  const today=dailyDateKey();
+  try{
+    const raw=JSON.parse(localStorage.getItem(DAILY_QUESTS_KEY)||'null');
+    if(raw && raw.date===today && Array.isArray(raw.quests)) return raw;
+  }catch(e){}
+  const pool=[...DAILY_QUEST_POOL];
+  let seed=dailySeed(today), picked=[];
+  while(picked.length<3 && pool.length){
+    seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+    const idx=seed%pool.length;
+    picked.push({...pool.splice(idx,1)[0], progress:0, claimed:false});
+  }
+  const data={date:today,quests:picked,allClaimed:false};
+  localStorage.setItem(DAILY_QUESTS_KEY,JSON.stringify(data));
+  return data;
+}
+function saveDailyQuestData(data){ localStorage.setItem(DAILY_QUESTS_KEY,JSON.stringify(data)); }
+function updateDailyQuest(event, amount=1){
+  const data=getDailyQuestData();
+  let changed=false;
+  data.quests.forEach(q=>{
+    if(q.claimed) return;
+    if(q.event==='combo') return;
+    if(q.event===event){
+      q.progress=Math.min(q.target,q.progress+amount); changed=true;
+    }
+  });
+  if(event==='combo'){
+    const human=state?.players?.find(p=>p.isHuman);
+    if(human && (human.wallsPlacedThisGame||0)>=3 && (human.cardsUsedThisGame||0)>=1){
+      data.quests.forEach(q=>{if(q.event==='combo'&&!q.claimed){q.progress=1;changed=true;}});
+    }
+  }
+  if(changed) saveDailyQuestData(data);
+  return changed;
+}
+function claimDailyQuest(index){
+  const data=getDailyQuestData(), q=data.quests[index];
+  if(!q || q.claimed || q.progress<q.target) return;
+  q.claimed=true; addCoins(q.reward); saveDailyQuestData(data);
+  showShopFeedback(`🎯 ${q.name} : +${q.reward} 🪙`,false);
+  renderDailyQuestsPanel();
+  updateMenuDisplays();
+}
+function renderDailyQuestsPanel(){
+  const body=document.getElementById('menu-panel-body'); if(!body)return;
+  const data=getDailyQuestData();
+  const done=data.quests.filter(q=>q.claimed).length;
+  body.innerHTML=`
+    <div class="daily-quests-panel">
+      <div class="daily-quests-head">
+        <div><h2>🎯 Quêtes du jour</h2><p class="panel-subtitle">3 objectifs renouvelés chaque jour.</p></div>
+        <div class="daily-count">${done}/3</div>
+      </div>
+      <div class="daily-quests-list">
+        ${data.quests.map((q,i)=>{
+          const pct=Math.min(100,Math.round(q.progress/q.target*100));
+          const complete=q.progress>=q.target;
+          return `<div class="daily-quest-card ${q.claimed?'claimed':''} ${complete?'complete':''}">
+            <div class="daily-quest-icon">${q.icon}</div>
+            <div class="daily-quest-main">
+              <div class="daily-quest-title">${q.name}</div>
+              <div class="daily-quest-desc">${q.desc}</div>
+              <div class="daily-quest-progress"><span style="width:${pct}%"></span></div>
+              <div class="daily-quest-meta">${q.progress}/${q.target} <b>+${q.reward} 🪙</b></div>
+            </div>
+            <button class="daily-claim-btn" ${(!complete||q.claimed)?'disabled':''} onclick="claimDailyQuest(${i})">${q.claimed?'✓':complete?'RÉCLAMER':'EN COURS'}</button>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="daily-bonus ${done===3?'ready':''}">
+        ${done===3?'🎁 Bonus des 3 quêtes : +500 🪙':'🎁 Termine les 3 quêtes pour débloquer le bonus +500 🪙'}
+        ${done===3 && !data.allClaimed ? '<button type="button" id="daily-bonus-claim-btn" class="daily-bonus-btn">RÉCLAMER</button>' : data.allClaimed ? '<span class="daily-bonus-claimed">✓ RÉCLAMÉ</span>' : ''}
+      </div>
+    </div>`;
+}
+window.claimDailyBonus=function(){
+  const data=getDailyQuestData();
+  if(data.allClaimed || data.quests.some(q=>!q.claimed)) return;
+  data.allClaimed=true;
+  saveDailyQuestData(data);
+  const current=loadCoins();
+  localStorage.setItem(CONFIG.COINS_KEY, String(Math.max(0,current+500)));
+  if(state) state.coins=loadCoins();
+  updateCoinDisplay();
+  updateMenuDisplays();
+  renderDailyQuestsPanel();
+  showShopFeedback('🎁 Bonus quotidien : +500 🪙',false);
+};
+
+
+window.openDailyQuests=function(){ openMenuPanel('quests'); };
 
 const N = CONFIG.BOARD_SIZE;
 
@@ -150,7 +274,7 @@ const EFFECTS = [
  {id:'trail',name:'Traînée',price:300,rarity:'Commun',icon:'💨',desc:'Une traînée légère accompagne chacun de tes déplacements.',color:'#8BD3FF'},
  {id:'spark',name:'Étincelles',price:450,rarity:'Commun',icon:'✨',desc:'Des étincelles jaillissent à chaque déplacement.',color:'#FFD84D'},
  {id:'lightning',name:'Foudre',price:800,rarity:'Rare',icon:'⚡',desc:'Un éclair frappe ton pion lorsque tu avances.',color:'#9B8CFF'},
- {id:'portal',name:'Portail',price:1100,rarity:'Rare',icon:'🌀',desc:'Un portail mystique s’ouvre lorsque tu utilises une carte.',color:'#B36BFF'},
+ {id:'portal',name:'Portail',price:1100,rarity:'Rare',icon:'🌀',desc:'Un portail mystique accompagne tes déplacements et tes cartes.',color:'#B36BFF'},
  {id:'inferno',name:'Inferno',price:1800,rarity:'Épique',icon:'🔥',desc:'Des flammes explosent autour de ton pion.',color:'#FF6A2A'},
  {id:'blizzard',name:'Blizzard',price:2200,rarity:'Épique',icon:'❄️',desc:'Un tourbillon de glace accompagne tes actions.',color:'#7DDCFF'},
  {id:'galaxy',name:'Galaxie',price:3500,rarity:'Légendaire',icon:'🌌',desc:'Des étoiles et une aura cosmique suivent ton pion.',color:'#A78BFA'},
@@ -276,32 +400,28 @@ window.equipBoardThemeFromShop = function(themeId) {
 //  CARTES & COLLECTION
 // ============================================================
 const CARDS = [
-  // Communes
-  { id:'sprint', name:'Sprint', icon:'⚡', rarity:'Commune', color:'#4DA3FF', desc:'Avance jusqu’à 2 cases en suivant ton meilleur chemin.', weight:18, effect:'sprint2' },
-  { id:'freewall', name:'Mur gratuit', icon:'🧱', rarity:'Commune', color:'#63C174', desc:'Pose une barrière sans consommer de barrière.', weight:18, effect:'freewall' },
-  { id:'vision', name:'Vision', icon:'👁️', rarity:'Commune', color:'#6E8DFF', desc:'Révèle les 3 prochaines cases de ton meilleur chemin.', weight:16, effect:'vision3' },
-  { id:'rebound', name:'Rebond', icon:'↩️', rarity:'Commune', color:'#3FB7A3', desc:'Avance d’une case supplémentaire si elle est disponible.', weight:14, effect:'sprint2' },
-  { id:'builder', name:'Petit bâtisseur', icon:'🔨', rarity:'Commune', color:'#8A9A5B', desc:'Pose une barrière avec une tentative gratuite supplémentaire.', weight:12, effect:'freewall' },
-  { id:'focus', name:'Concentration', icon:'🎯', rarity:'Commune', color:'#5B8DEF', desc:'Révèle ton meilleur prochain déplacement.', weight:10, effect:'vision3' },
+  // Communes — effets immédiatement utiles en partie
+  { id:'sprint', name:'Sprint', icon:'⚡', rarity:'Commune', color:'#4DA3FF', desc:'Avance jusqu’à 2 cases sur ton chemin.', weight:18, effect:'sprint2' },
+  { id:'freewall', name:'Mur gratuit', icon:'🧱', rarity:'Commune', color:'#63C174', desc:'Pose une barrière sans consommer ta réserve.', weight:18, effect:'freewall' },
+  { id:'doublemove', name:'Second souffle', icon:'👟', rarity:'Commune', color:'#22C55E', desc:'Après ton déplacement, tu rejoues immédiatement.', weight:14, effect:'doubleturn' },
+  { id:'wallbreak', name:'Brise-mur', icon:'💥', rarity:'Commune', color:'#F59E0B', desc:'Détruit la barrière de ton choix sur le plateau.', weight:10, effect:'breakwall' },
 
   // Rares
-  { id:'doubleturn', name:'Double tour', icon:'🔄', rarity:'Rare', color:'#4C7DFF', desc:'Ton prochain coup est immédiatement suivi d’un autre.', weight:7, effect:'doubleturn' },
-  { id:'jump', name:'Saut', icon:'🌀', rarity:'Rare', color:'#7A5CFF', desc:'Avance jusqu’à 3 cases en une seule utilisation.', weight:6, effect:'jump3' },
-  { id:'longvision', name:'Radar', icon:'📡', rarity:'Rare', color:'#2FA8D8', desc:'Révèle jusqu’à 5 cases de ton meilleur chemin.', weight:5, effect:'vision5' },
-  { id:'reservewall', name:'Réserve', icon:'📦', rarity:'Rare', color:'#3B9E68', desc:'Récupère une barrière pour ta réserve.', weight:5, effect:'recoverwall' },
-  { id:'precision', name:'Précision', icon:'🧭', rarity:'Rare', color:'#4D9FBF', desc:'Ton prochain déplacement suit directement la meilleure route.', weight:4, effect:'sprint2' },
+  { id:'doubleturn', name:'Double tour', icon:'🔄', rarity:'Rare', color:'#4C7DFF', desc:'Ton prochain coup est immédiatement suivi d’un autre.', weight:8, effect:'doubleturn' },
+  { id:'jump', name:'Saut', icon:'🌀', rarity:'Rare', color:'#7A5CFF', desc:'Avance jusqu’à 3 cases en une seule utilisation.', weight:7, effect:'jump3' },
+  { id:'passwall', name:'Passe-muraille', icon:'👻', rarity:'Rare', color:'#06B6D4', desc:'Ton prochain déplacement ignore les barrières.', weight:6, effect:'passwall' },
+  { id:'thief', name:'Voleur de murs', icon:'🦹', rarity:'Rare', color:'#14B8A6', desc:'Récupère une barrière chez un adversaire et ajoute-la à ta réserve.', weight:5, effect:'thief' },
 
   // Épiques
-  { id:'dash', name:'Ruée', icon:'💨', rarity:'Épique', color:'#A855F7', desc:'Avance jusqu’à 4 cases sur ton meilleur chemin.', weight:3, effect:'jump4' },
-  { id:'fortress', name:'Forteresse', icon:'🏰', rarity:'Épique', color:'#8B5CF6', desc:'Pose une barrière gratuite et récupère une barrière ensuite.', weight:3, effect:'fortress' },
-  { id:'oracle', name:'Oracle', icon:'🔮', rarity:'Épique', color:'#9B6DFF', desc:'Révèle jusqu’à 7 cases de ton meilleur chemin.', weight:2.5, effect:'vision7' },
-  { id:'momentum', name:'Élan', icon:'🔥', rarity:'Épique', color:'#E06CFF', desc:'Avance jusqu’à 3 cases et gagne un déplacement supplémentaire.', weight:2, effect:'momentum' },
-  { id:'architect', name:'Architecte', icon:'📐', rarity:'Épique', color:'#C084FC', desc:'Pose une barrière gratuitement, même si ta réserve est vide.', weight:2, effect:'freewall' },
+  { id:'dash', name:'Ruée', icon:'💨', rarity:'Épique', color:'#A855F7', desc:'Avance jusqu’à 4 cases en une seule utilisation.', weight:4, effect:'jump4' },
+  { id:'fortress', name:'Forteresse', icon:'🏰', rarity:'Épique', color:'#8B5CF6', desc:'Pose une barrière gratuite et récupère une barrière en réserve.', weight:3, effect:'fortress' },
+  { id:'exchange', name:'Échange', icon:'⇄', rarity:'Épique', color:'#EC4899', desc:'Échange ta position avec celle d’un adversaire.', weight:2.5, effect:'exchange' },
+  { id:'teleport', name:'Téléportation', icon:'✦', rarity:'Épique', color:'#6366F1', desc:'Téléporte-toi vers une case libre aléatoire.', weight:2, effect:'teleport' },
 
   // Légendaires
-  { id:'warp', name:'Distorsion', icon:'🪐', rarity:'Légendaire', color:'#D946EF', desc:'Avance jusqu’à 5 cases en suivant le meilleur chemin.', weight:1.2, effect:'jump5' },
-  { id:'mastermind', name:'Génie tactique', icon:'🧠', rarity:'Légendaire', color:'#EC4899', desc:'Révèle jusqu’à 9 cases de ton meilleur chemin.', weight:0.9, effect:'vision9' },
-  { id:'fortressplus', name:'Bastion', icon:'🛡️', rarity:'Légendaire', color:'#F59E0B', desc:'Pose une barrière gratuite et récupère immédiatement une barrière.', weight:0.7, effect:'fortress' },
+  { id:'warp', name:'Distorsion', icon:'🪐', rarity:'Légendaire', color:'#D946EF', desc:'Avance jusqu’à 5 cases sur ton chemin.', weight:1.2, effect:'jump5' },
+  { id:'shield', name:'Bouclier', icon:'🛡️', rarity:'Légendaire', color:'#F59E0B', desc:'Protège ton prochain coup contre un effet négatif du Mode Chaos.', weight:0.9, effect:'shield' },
+  { id:'chaosmaster', name:'Maître du Chaos', icon:'☄️', rarity:'Légendaire', color:'#EF4444', desc:'Avance jusqu’à 3 cases et rejoue immédiatement.', weight:0.7, effect:'momentum' },
   { id:'legendaryrush', name:'Éclair légendaire', icon:'🌟', rarity:'Légendaire', color:'#F97316', desc:'Avance jusqu’à 5 cases puis rejoue immédiatement.', weight:0.5, effect:'legendaryrush' }
 ];
 const CARD_KEY = 'quoridor4_cards';
@@ -374,112 +494,486 @@ function consumeCard(id) {
   if(n<=0) return false;
   data.collection[id]=n-1; saveCards(data); return true;
 }
+// ============================================================
+//  OUVERTURE DE PACK — SCÈNE CINÉMATIQUE
+//  Séquence : arrivée → suspense → impacts successifs → déchirure
+//  lumineuse → révélation des cartes (effets selon la rareté).
+// ============================================================
+const PACK_RARITY_FX = {
+  'Commune':    { tier: 1, color: '#B9C2E0', particles: 8,  tone: [523] },
+  'Rare':       { tier: 2, color: '#4DA3FF', particles: 16, tone: [440, 659] },
+  'Épique':     { tier: 3, color: '#B66CFF', particles: 26, tone: [392, 523, 659] },
+  'Légendaire': { tier: 4, color: '#FFD45A', particles: 44, tone: [392, 494, 587, 784] }
+};
+function pkoRarityFx(rarity) { return PACK_RARITY_FX[rarity] || PACK_RARITY_FX['Commune']; }
+
+const PKO_REDUCED_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
 let pendingPackRewards = null;
-let packOpenPhase = 'idle';
+let pendingPackNewFlags = null;
+let pendingPackPrevCounts = null;
+let packOpenPhase = 'idle'; // idle | arriving | ready | charging | bursting | revealing | opened
+let packFlippedCount = 0;
+let packTimers = [];
+let packRevealTimers = [];
+let packTensionTimer = null;
 
-function openCardPack() {
-  const coins=loadCoins();
-  if(coins<PACK_COST) { showMessage(`Il te faut ${PACK_COST} 🪙 pour acheter un pack.`); return; }
-  const overlay=document.getElementById('pack-opening-overlay');
-  if(!overlay || overlay.classList.contains('opening')) return;
-
-  // L'achat ne révèle rien immédiatement : le pack apparaît d'abord à l'écran.
-  addCoins(-PACK_COST);
-  pendingPackRewards=[];
-  for(let i=0;i<3;i++) pendingPackRewards.push(weightedRandomCard());
-  packOpenPhase='ready';
-  showPackReadyAnimation();
+function pkoDelay(ms) { return PKO_REDUCED_MOTION ? Math.min(ms, 60) : ms; }
+function pkoTimeout(fn, ms) { const id = setTimeout(fn, pkoDelay(ms)); packTimers.push(id); return id; }
+function pkoClearTimers() {
+  packTimers.forEach(clearTimeout); packTimers = [];
+  packRevealTimers.forEach(clearTimeout); packRevealTimers = [];
+  if (packTensionTimer) { clearTimeout(packTensionTimer); packTensionTimer = null; }
 }
 
-function showPackReadyAnimation() {
-  const overlay=document.getElementById('pack-opening-overlay');
-  const visual=document.getElementById('pack-visual');
-  const stage=document.getElementById('pack-reveal-stage');
-  const subtitle=document.getElementById('pack-opening-subtitle');
-  const closeBtn=document.getElementById('pack-opening-close');
-  if(!overlay || !visual || !stage || !subtitle) return;
+/* ---------- Petit moteur de particules (canvas, léger) ---------- */
+let pkoCanvas = null, pkoCtx = null, pkoParticles = [], pkoRafId = null, pkoAmbientTimer = null, pkoDPR = 1;
 
-  overlay.classList.remove('hidden','closing');
-  overlay.classList.add('opening','pack-ready-phase');
-  overlay.setAttribute('aria-hidden','false');
-  stage.innerHTML='';
-  if(closeBtn) closeBtn.classList.add('hidden');
-  // Reset propre des animations pour que chaque nouvel achat rejoue vraiment l'entrée.
-  visual.className='pack-visual';
+function setupPackCanvas() {
+  pkoCanvas = document.getElementById('pack-fx-canvas');
+  if (!pkoCanvas) return;
+  pkoCtx = pkoCanvas.getContext('2d');
+  resizePackCanvas();
+}
+function resizePackCanvas() {
+  const modal = document.getElementById('pack-opening-modal');
+  if (!pkoCanvas || !pkoCtx || !modal) return;
+  const rect = modal.getBoundingClientRect();
+  pkoDPR = Math.min(window.devicePixelRatio || 1, 2);
+  pkoCanvas.width = Math.max(1, Math.round(rect.width * pkoDPR));
+  pkoCanvas.height = Math.max(1, Math.round(rect.height * pkoDPR));
+  pkoCanvas.style.width = rect.width + 'px';
+  pkoCanvas.style.height = rect.height + 'px';
+  pkoCtx.setTransform(pkoDPR, 0, 0, pkoDPR, 0, 0);
+}
+function pkoClearCanvas() {
+  if (!pkoCtx || !pkoCanvas) return;
+  pkoCtx.save();
+  pkoCtx.setTransform(1, 0, 0, 1, 0, 0);
+  pkoCtx.clearRect(0, 0, pkoCanvas.width, pkoCanvas.height);
+  pkoCtx.restore();
+}
+function pkoPointInModal(el) {
+  const modal = document.getElementById('pack-opening-modal');
+  if (!el || !modal) return { x: 0, y: 0 };
+  const mr = modal.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  return { x: (er.left + er.width / 2) - mr.left, y: (er.top + er.height / 2) - mr.top };
+}
+function spawnBurstParticles(el, count, speed, big) {
+  if (PKO_REDUCED_MOTION || !pkoCtx || !el) return;
+  const origin = pkoPointInModal(el);
+  let color = (document.getElementById('pack-visual').style.getPropertyValue('--pko-c') || '#FFC94D').trim();
+  if (el.classList && el.classList.contains('pko-card')) {
+    const cc = el.style.getPropertyValue('--card-color');
+    if (cc) color = cc.trim();
+  }
+  const n = Math.min(count, 90);
+  for (let i = 0; i < n; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const v = speed * 0.35 + Math.random() * speed * 0.55;
+    pkoParticles.push({
+      x: origin.x, y: origin.y,
+      vx: Math.cos(angle) * v / 28,
+      vy: Math.sin(angle) * v / 28 - (big ? 1.4 : 0.5),
+      life: 0, maxLife: (big ? 60 : 36) + Math.random() * 26,
+      size: (big ? 2.6 : 1.7) + Math.random() * 1.6,
+      color, grav: big ? 0.045 : 0.03,
+      shard: !!big && Math.random() < 0.3,
+      rot: Math.random() * Math.PI
+    });
+  }
+  if (pkoParticles.length > 420) pkoParticles.splice(0, pkoParticles.length - 420);
+  pkoEnsureLoop();
+}
+function pkoEnsureLoop() {
+  if (pkoRafId) return;
+  const step = () => {
+    if (!pkoCtx) { pkoRafId = null; return; }
+    if (packOpenPhase === 'idle' && pkoParticles.length === 0) { pkoRafId = null; return; }
+    pkoClearCanvas();
+    pkoParticles = pkoParticles.filter(p => {
+      p.life++; p.x += p.vx; p.y += p.vy; p.vy += p.grav; p.rot += 0.15;
+      const t = p.life / p.maxLife;
+      if (t >= 1) return false;
+      pkoCtx.globalAlpha = Math.max(0, 1 - t);
+      pkoCtx.fillStyle = p.color;
+      if (p.shard) {
+        pkoCtx.save();
+        pkoCtx.translate(p.x, p.y);
+        pkoCtx.rotate(p.rot);
+        pkoCtx.fillRect(-p.size, -p.size * 0.35, p.size * 2, p.size * 0.7);
+        pkoCtx.restore();
+      } else {
+        pkoCtx.beginPath();
+        pkoCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        pkoCtx.fill();
+      }
+      return true;
+    });
+    pkoCtx.globalAlpha = 1;
+    pkoRafId = requestAnimationFrame(step);
+  };
+  pkoRafId = requestAnimationFrame(step);
+}
+function startAmbientParticles() {
+  if (PKO_REDUCED_MOTION) return;
+  stopAmbientParticles();
+  pkoAmbientTimer = setInterval(() => {
+    if (packOpenPhase !== 'ready' && packOpenPhase !== 'arriving') return;
+    const visual = document.getElementById('pack-visual');
+    if (visual) spawnBurstParticles(visual, 2, 8);
+  }, 420);
+}
+function stopAmbientParticles() {
+  if (pkoAmbientTimer) { clearInterval(pkoAmbientTimer); pkoAmbientTimer = null; }
+  pkoParticles = [];
+  pkoClearCanvas();
+  if (pkoRafId) { cancelAnimationFrame(pkoRafId); pkoRafId = null; }
+}
+
+/* ---------- Flash plein écran ---------- */
+function triggerScreenFlash(soft) {
+  const flash = document.getElementById('pko-screenflash');
+  if (!flash || PKO_REDUCED_MOTION) return;
+  flash.classList.remove('pko-flash-strong', 'pko-flash-soft');
+  void flash.offsetWidth;
+  flash.classList.add(soft ? 'pko-flash-soft' : 'pko-flash-strong');
+}
+
+/* ---------- Petits sons synthétisés (en plus des sons existants) ---------- */
+let pkoAudioCtx = null;
+function pkoGetAudioCtx() {
+  if (!audioEnabled) return null;
+  try {
+    if (!pkoAudioCtx) pkoAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (pkoAudioCtx.state === 'suspended') pkoAudioCtx.resume();
+    return pkoAudioCtx;
+  } catch (_) { return null; }
+}
+function pkoTone(freq, delay, dur, type, gainMul) {
+  const ctx = pkoGetAudioCtx();
+  if (!ctx) return;
+  try {
+    const t0 = ctx.currentTime + (delay || 0);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    const peak = 0.16 * audioVolume * (gainMul || 1);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0001), t0 + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + (dur || 0.2));
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t0); osc.stop(t0 + (dur || 0.2) + 0.05);
+  } catch (_) {}
+}
+function pkoNoiseThud(delay, dur, vol) {
+  const ctx = pkoGetAudioCtx();
+  if (!ctx) return;
+  try {
+    const t0 = ctx.currentTime + (delay || 0);
+    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * (dur || 0.18)));
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    const src = ctx.createBufferSource(); src.buffer = buffer;
+    const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 900;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime((vol || 0.22) * audioVolume, t0);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + (dur || 0.18));
+    src.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    src.start(t0);
+  } catch (_) {}
+}
+function pkoSynthImpact(stage) {
+  if (!audioEnabled) return;
+  pkoNoiseThud(0, 0.14 + stage * 0.02, 0.12 + stage * 0.05);
+  pkoTone(120 + stage * 22, 0.01, 0.12, 'triangle', 0.5 + stage * 0.15);
+}
+function pkoSynthBurst(tier) {
+  if (!audioEnabled) return;
+  pkoNoiseThud(0, 0.28, 0.32);
+  const freqs = tier >= 4 ? [523, 659, 784, 1046] : tier >= 3 ? [440, 554, 659] : [392, 523];
+  freqs.forEach((f, i) => pkoTone(f, 0.02 + i * 0.05, 0.5, 'sine', 0.55));
+}
+function pkoSynthReveal(tier) {
+  if (!audioEnabled) return;
+  const fx = Object.values(PACK_RARITY_FX).find(f => f.tier === tier) || PACK_RARITY_FX['Commune'];
+  fx.tone.forEach((f, i) => pkoTone(f, i * 0.045, 0.32, 'triangle', 0.4 + tier * 0.06));
+}
+
+/* ---------- Séquence principale ---------- */
+function openCardPack() {
+  if (packOpenPhase !== 'idle') return;
+  const coins = loadCoins();
+  if (coins < PACK_COST) { showMessage(`Il te faut ${PACK_COST} 🪙 pour acheter un pack.`); return; }
+  const overlay = document.getElementById('pack-opening-overlay');
+  if (!overlay) return;
+
+  addCoins(-PACK_COST);
+
+  const counts = cardCounts();
+  const seen = {};
+  pendingPackRewards = []; pendingPackNewFlags = []; pendingPackPrevCounts = [];
+  for (let i = 0; i < 3; i++) {
+    const card = weightedRandomCard();
+    const priorTotal = (Number(counts[card.id]) || 0) + (seen[card.id] || 0);
+    pendingPackRewards.push(card);
+    pendingPackNewFlags.push(priorTotal === 0);
+    pendingPackPrevCounts.push(priorTotal);
+    seen[card.id] = (seen[card.id] || 0) + 1;
+  }
+
+  packOpenPhase = 'arriving';
+  startPackScene();
+}
+
+function pkoBestRarityFx() {
+  let best = PACK_RARITY_FX['Commune'];
+  (pendingPackRewards || []).forEach(c => { const fx = pkoRarityFx(c.rarity); if (fx.tier > best.tier) best = fx; });
+  return best;
+}
+function pkoBestRarityLabel() {
+  let best = 'Commune', bestTier = 0;
+  (pendingPackRewards || []).forEach(c => { const t = pkoRarityFx(c.rarity).tier; if (t > bestTier) { bestTier = t; best = c.rarity; } });
+  return best;
+}
+
+function startPackScene() {
+  const overlay = document.getElementById('pack-opening-overlay');
+  const modal = document.getElementById('pack-opening-modal');
+  const visual = document.getElementById('pack-visual');
+  const stage = document.getElementById('pack-reveal-stage');
+  const subtitle = document.getElementById('pack-opening-subtitle');
+  const closeBtn = document.getElementById('pack-opening-close');
+  const footer = document.getElementById('pko-reveal-footer');
+  if (!overlay || !visual || !stage || !subtitle || !modal) return;
+
+  pkoClearTimers();
+  packFlippedCount = 0;
+
+  overlay.classList.remove('hidden', 'closing');
+  overlay.classList.add('opening');
+  overlay.setAttribute('aria-hidden', 'false');
+  modal.classList.remove('pko-legendary-tease', 'pko-shake-1', 'pko-shake-2', 'pko-shake-3');
+  stage.innerHTML = '';
+  if (footer) footer.classList.add('hidden');
+  if (closeBtn) closeBtn.classList.add('hidden');
+
+  const best = pkoBestRarityFx();
+  visual.style.setProperty('--pko-c', best.color);
+  if (best.tier >= 4) modal.classList.add('pko-legendary-tease');
+
+  visual.className = 'pack-visual';
   void visual.offsetWidth;
-  visual.classList.add('pack-ready');
-  subtitle.textContent='Clique sur le pack pour l’ouvrir';
+  visual.classList.add('pko-arrive');
+  subtitle.textContent = 'Le pack arrive…';
 
-  // Le pack devient cliquable après son arrivée à l'écran.
-  visual.onclick=triggerPackOpening;
-  visual.setAttribute('role','button');
-  visual.setAttribute('tabindex','0');
-  visual.setAttribute('aria-label','Ouvrir le pack');
-  visual.onkeydown=(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); triggerPackOpening(); } };
+  setupPackCanvas();
+  startAmbientParticles();
+
+  pkoTimeout(() => {
+    if (packOpenPhase !== 'arriving') return;
+    packOpenPhase = 'ready';
+    visual.classList.remove('pko-arrive');
+    visual.classList.add('pko-ready');
+    subtitle.textContent = 'Touche le pack pour l’ouvrir';
+    visual.onclick = triggerPackOpening;
+    visual.setAttribute('role', 'button');
+    visual.setAttribute('tabindex', '0');
+    visual.setAttribute('aria-label', 'Ouvrir le pack');
+    visual.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); triggerPackOpening(); } };
+    packTensionTimer = setTimeout(() => {
+      if (packOpenPhase === 'ready') { visual.classList.add('pko-eager'); subtitle.textContent = 'Vas-y, ouvre-le ! ✨'; }
+    }, pkoDelay(3400));
+  }, 780);
 }
 
 function triggerPackOpening() {
-  if(packOpenPhase!=='ready') return;
-  packOpenPhase='opening';
+  if (packOpenPhase !== 'ready') return;
+  packOpenPhase = 'charging';
 
-  const overlay=document.getElementById('pack-opening-overlay');
-  const visual=document.getElementById('pack-visual');
-  const subtitle=document.getElementById('pack-opening-subtitle');
-  if(!overlay || !visual) return;
+  const visual = document.getElementById('pack-visual');
+  const modal = document.getElementById('pack-opening-modal');
+  const subtitle = document.getElementById('pack-opening-subtitle');
+  if (!visual) return;
 
-  visual.onclick=null;
-  visual.onkeydown=null;
-  visual.removeAttribute('tabindex');
-  visual.setAttribute('aria-label','Pack en cours d’ouverture');
-  subtitle.textContent='Il s’ouvre...';
+  if (packTensionTimer) { clearTimeout(packTensionTimer); packTensionTimer = null; }
+  visual.onclick = null; visual.onkeydown = null; visual.removeAttribute('tabindex');
+  visual.setAttribute('aria-label', 'Pack en cours d’ouverture');
+
+  visual.classList.remove('pko-ready', 'pko-eager');
+  visual.classList.add('pko-charging');
+  if (subtitle) subtitle.textContent = 'Il réagit...';
+
   playSound('pack');
+  pkoSynthImpact(1);
+  visual.classList.add('pko-impact1');
+  spawnBurstParticles(visual, 6, 40);
 
-  // Petit délai de suspense : tremblement, puis ouverture et grosse lumière.
-  // Force le navigateur à repartir d'un état neutre avant le shake.
-  visual.classList.remove('pack-ready','pack-shake','pack-opened','pack-light-burst');
-  void visual.offsetWidth;
-  visual.classList.add('pack-shake');
-  setTimeout(()=>visual.classList.add('pack-opened'),520);
-  setTimeout(()=>{
-    subtitle.textContent='✨ La lumière sort du pack !';
-    visual.classList.add('pack-light-burst');
-  },680);
+  pkoTimeout(() => {
+    visual.classList.remove('pko-impact1');
+    void visual.offsetWidth;
+    visual.classList.add('pko-impact2', 'pko-leak');
+    if (subtitle) subtitle.textContent = 'Ça bouge là-dedans...';
+    pkoSynthImpact(2);
+    spawnBurstParticles(visual, 10, 55);
+  }, 260);
 
-  // Pour l'instant on s'arrête à cette étape : le reveal des cartes viendra ensuite.
-  setTimeout(()=>{
-    if(packOpenPhase!=='opening') return;
-    subtitle.textContent='Pack ouvert !';
-    if(pendingPackRewards){
-      pendingPackRewards.forEach(card=>addCardToCollection(card.id,1));
-    }
-    packOpenPhase='opened';
-  },1250);
+  pkoTimeout(() => {
+    visual.classList.remove('pko-impact2');
+    void visual.offsetWidth;
+    visual.classList.add('pko-impact3');
+    if (subtitle) subtitle.textContent = '✨ La lumière sort du pack !';
+    pkoSynthImpact(3);
+    spawnBurstParticles(visual, 14, 70);
+    if (modal) { modal.classList.add('pko-shake-2'); }
+  }, 260);
+
+  pkoTimeout(() => { startPackBurst(); }, 260 + 260 + 300);
 }
 
-function openPackOpeningAnimation(rewards) {
-  // Compatibilité avec les anciennes versions : redirige vers le nouveau flow.
-  pendingPackRewards = Array.isArray(rewards) ? rewards : null;
-  showPackReadyAnimation();
+function startPackBurst() {
+  packOpenPhase = 'bursting';
+  const visual = document.getElementById('pack-visual');
+  const modal = document.getElementById('pack-opening-modal');
+  const subtitle = document.getElementById('pack-opening-subtitle');
+  if (!visual) return;
+
+  visual.classList.remove('pko-impact3', 'pko-leak');
+  void visual.offsetWidth;
+  visual.classList.add('pko-burst');
+  if (modal) { modal.classList.remove('pko-shake-2'); void modal.offsetWidth; modal.classList.add('pko-shake-3'); }
+
+  pkoSynthBurst(pkoBestRarityFx().tier);
+  triggerScreenFlash(false);
+  spawnBurstParticles(visual, 46, 220, true);
+
+  pkoTimeout(() => {
+    if (subtitle) subtitle.textContent = 'Pack ouvert !';
+    // Les récompenses sont accordées maintenant, quoi qu'il arrive ensuite.
+    if (pendingPackRewards) pendingPackRewards.forEach(card => addCardToCollection(card.id, 1));
+    visual.classList.add('pko-hide');
+    beginRevealPhase();
+  }, 620);
+}
+
+function beginRevealPhase() {
+  packOpenPhase = 'revealing';
+  const stage = document.getElementById('pack-reveal-stage');
+  const subtitle = document.getElementById('pack-opening-subtitle');
+  const footer = document.getElementById('pko-reveal-footer');
+  if (!stage || !pendingPackRewards) return;
+
+  playSound('card');
+  if (subtitle) subtitle.textContent = 'Touche les cartes pour les révéler';
+
+  stage.innerHTML = pendingPackRewards.map((c, i) => {
+    const isNew = pendingPackNewFlags && pendingPackNewFlags[i];
+    const prevCount = (pendingPackPrevCounts && pendingPackPrevCounts[i]) || 0;
+    const tier = pkoRarityFx(c.rarity).tier;
+    return `<div class="pko-card pko-tier-${tier}" data-index="${i}" style="--card-color:${c.color}; --reveal-delay:${i * 110}ms">
+      <div class="pko-card-inner">
+        <div class="pko-card-face pko-card-back">
+          <div class="pko-card-back-glow"></div>
+          <div class="pko-card-back-pattern"></div>
+          <div class="pko-card-back-logo">Q4</div>
+        </div>
+        <div class="pko-card-face pko-card-front">
+          <div class="pko-card-rarity">${c.rarity}</div>
+          <div class="pko-card-icon">${c.icon}</div>
+          <div class="pko-card-name">${c.name}</div>
+          <div class="pko-card-desc">${c.desc}</div>
+          ${isNew ? '<div class="pko-card-new">NOUVEAU</div>' : `<div class="pko-card-count">Tu en avais déjà ${prevCount}</div>`}
+        </div>
+      </div>
+      <div class="pko-card-burst"></div>
+    </div>`;
+  }).join('');
+
+  stage.querySelectorAll('.pko-card').forEach((el) => {
+    const idx = Number(el.dataset.index);
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', 'Révéler la carte');
+    el.addEventListener('click', () => flipRevealCard(idx));
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flipRevealCard(idx); } });
+    const t = pkoTimeout(() => flipRevealCard(idx), 2200 + idx * 550);
+    packRevealTimers.push(t);
+  });
+
+  if (footer) footer.classList.remove('hidden');
+}
+
+function flipRevealCard(index) {
+  const stage = document.getElementById('pack-reveal-stage');
+  if (!stage || !pendingPackRewards) return;
+  const el = stage.querySelector(`.pko-card[data-index="${index}"]`);
+  if (!el || el.classList.contains('pko-flipped')) return;
+  const card = pendingPackRewards[index];
+  if (!card) return;
+  const fx = pkoRarityFx(card.rarity);
+
+  el.classList.add('pko-flipped', 'pko-flipping');
+  playSound('card');
+  pkoSynthReveal(fx.tier);
+  spawnBurstParticles(el, fx.particles, 30 + fx.tier * 14);
+
+  if (fx.tier >= 3) {
+    const modal = document.getElementById('pack-opening-modal');
+    if (modal) { modal.classList.remove('pko-shake-1', 'pko-shake-2', 'pko-shake-3'); void modal.offsetWidth; modal.classList.add(fx.tier >= 4 ? 'pko-shake-3' : 'pko-shake-2'); }
+  }
+  if (fx.tier >= 4) triggerScreenFlash(true);
+
+  setTimeout(() => el.classList.remove('pko-flipping'), 650);
+
+  packFlippedCount++;
+  if (packFlippedCount >= pendingPackRewards.length) {
+    packRevealTimers.forEach(clearTimeout); packRevealTimers = [];
+    pkoTimeout(finishPackReveal, 650);
+  }
+}
+
+function revealAllPackCards() {
+  if (!pendingPackRewards) return;
+  packRevealTimers.forEach(clearTimeout); packRevealTimers = [];
+  pendingPackRewards.forEach((_, i) => pkoTimeout(() => flipRevealCard(i), i * 140));
+}
+
+function finishPackReveal() {
+  packOpenPhase = 'opened';
+  const subtitle = document.getElementById('pack-opening-subtitle');
+  const closeBtn = document.getElementById('pack-opening-close');
+  const footer = document.getElementById('pko-reveal-footer');
+  const bestLabel = pkoBestRarityLabel();
+  const bestTier = pkoRarityFx(bestLabel).tier;
+  if (subtitle) subtitle.textContent = bestTier >= 3 ? `🎉 Incroyable, du ${bestLabel} dans ce pack !` : '🎉 3 cartes ajoutées à ta collection !';
+  if (footer) footer.classList.add('hidden');
+  if (closeBtn) closeBtn.classList.remove('hidden');
 }
 
 function closePackOpening() {
-  const overlay=document.getElementById('pack-opening-overlay');
-  const visual=document.getElementById('pack-visual');
-  if(!overlay) return;
-  packOpenPhase='idle';
-  pendingPackRewards=null;
-  if(visual){ visual.onclick=null; visual.onkeydown=null; }
-  overlay.classList.remove('opening','pack-ready-phase');
+  const overlay = document.getElementById('pack-opening-overlay');
+  const visual = document.getElementById('pack-visual');
+  if (!overlay) return;
+  pkoClearTimers();
+  stopAmbientParticles();
+  packOpenPhase = 'idle';
+  pendingPackRewards = null; pendingPackNewFlags = null; pendingPackPrevCounts = null; packFlippedCount = 0;
+  if (visual) { visual.onclick = null; visual.onkeydown = null; }
+  overlay.classList.remove('opening');
   overlay.classList.add('closing');
-  setTimeout(()=>{
+  pkoTimeout(() => {
     overlay.classList.add('hidden');
     overlay.classList.remove('closing');
-    overlay.setAttribute('aria-hidden','true');
+    overlay.setAttribute('aria-hidden', 'true');
     openMenuPanel('cards');
-  },260);
+  }, 260);
 }
-window.openCardPack=openCardPack;
-window.openCardsPanel=()=>openMenuPanel('cards');
+window.openCardPack = openCardPack;
+window.openCardsPanel = () => openMenuPanel('cards');
+window.revealAllPackCards = revealAllPackCards;
 
 function buildCardCollectionHTML() {
   const counts=cardCounts();
@@ -776,13 +1270,13 @@ function createNewGameState() {
   const wallsPerPlayer = count === 2 ? 8 : count === 3 ? 6 : count === 4 ? 5 : 4;
   const players = ALL_PLAYER_DEFS.slice(0, count).map(def => {
     const pos = count === 5 ? nearestPlayableCellToPentSide(def.pentSide) : startPositions[def.side];
-    return { ...def, row: pos.row, col: pos.col, wallsLeft: wallsPerPlayer };
+    return { ...def, row: pos.row, col: pos.col, wallsLeft: wallsPerPlayer, botTurns: 0, lastWallTargetId: null };
   });
   const gameState = {
-    players, currentPlayerIndex: 0, walls: new Set(), jointOrientations: new Map(),
+    players, currentPlayerIndex: 0, walls: new Set(), jointOrientations: new Map(), wallOwners: new Map(),
     mode: 'move', orientation: 'H', gameOver: false, difficulty: getDifficultyKey(),
     trophies: loadTrophies(), coins: loadCoins(),
-    cardHand: drawHand(), cardUsed: new Set(), pendingFreeWall: false, extraTurn: false, extraTurnForId: null, visionCells: [],
+    cardHand: drawHand(), cardUsed: new Set(), pendingFreeWall: false, pendingBreakWall: false, extraTurn: false, extraTurnForId: null, cardPlayedThisTurn: false, cardActivationPending: false, visionCells: [],
     chaos: getGameMode() === CHAOS_MODE, specialCells: new Map()
   };
   state = gameState;
@@ -879,7 +1373,7 @@ function getValidMoveCells(player) {
 function movePawn(player, r, c) {
   const changed = player.row !== r || player.col !== c;
   player.row = r; player.col = c;
-  if (changed) { playSound('move'); emitCosmeticEffect('move', player); }
+  if (changed) { playSound('move'); }
 }
 
 function getWallEdges(i, j, orientation) {
@@ -912,6 +1406,7 @@ function placeWall(player, i, j, orientation, freeWall = false) {
   if (!check.ok) return false;
   check.edges.forEach(e => state.walls.add(e));
   state.jointOrientations.set(`${i},${j}`, orientation);
+  state.wallOwners.set(`${i},${j}`, player.id);
   if (!freeWall) player.wallsLeft -= 1;
   renderWall(i, j, orientation);
   playSound('wall');
@@ -947,6 +1442,7 @@ function startGame() {
   uiLocked = false;
   showScreen('game');
   state = createNewGameState();
+  state.players.forEach(p=>{p.movesThisGame=0;p.wallsPlacedThisGame=0;p.cardsUsedThisGame=0;});
   const frame = document.getElementById('board-frame');
   if (frame) { frame.classList.toggle('mode-5', state.players.length === 5); frame.classList.toggle('mode-chaos', state.chaos); }
   applyBoardTheme();
@@ -983,6 +1479,10 @@ function beginTurn() {
 function endTurn() {
   if (state.gameOver) return;
   clearHighlights();
+  // Une seule carte maximum pendant chaque tour. Le compteur est réinitialisé
+  // avant un nouveau tour, y compris lorsqu'une carte donne un tour bonus.
+  state.cardPlayedThisTurn = false;
+  state.cardActivationPending = false;
   if (state.extraTurnForId === currentPlayer().id) { state.extraTurnForId = null; beginTurn(); return; }
   if (state.extraTurn && currentPlayer().isHuman) { state.extraTurn = false; beginTurn(); return; }
   state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
@@ -1003,8 +1503,15 @@ function runBotTurn(player) {
   if (state.gameOver) return;
   const difficulty = getDifficultyInfo();
   let actionDone = false;
+  player.botTurns = (player.botTurns || 0) + 1;
 
-  if (player.wallsLeft > 0 && Math.random() < difficulty.wallProbability) {
+  // Les bots économisent leurs barrières au début et ne les dépensent que
+  // lorsqu'elles ont une vraie valeur stratégique.
+  let wallProbability = difficulty.wallProbability;
+  if (player.botTurns <= 3) wallProbability *= 0.35;
+  if (player.wallsLeft <= 2) wallProbability *= 0.50;
+
+  if (player.wallsLeft > 0 && Math.random() < wallProbability) {
     actionDone = botTryPlaceBlockingWall(player, difficulty);
   }
   if (!actionDone) actionDone = botTryMove(player, difficulty);
@@ -1060,21 +1567,32 @@ function botTryMove(player, difficulty = getDifficultyInfo()) {
 
 function getBotTarget(player) {
   const opponents = state.players.filter(p => p.id !== player.id);
-  let target = null;
-  let bestDist = Infinity;
-  for (const opp of opponents) {
+  if (!opponents.length) return null;
+
+  // On ne cible plus systématiquement l'humain : on regarde les adversaires
+  // réellement dangereux, puis on choisit de façon pondérée entre les meilleurs.
+  const ranked = opponents.map(opp => {
     const d = computeGoalDistances(opp.side)[opp.row][opp.col];
-    if (d < bestDist) {
-      bestDist = d;
-      target = opp;
-    }
+    const urgency = Number.isFinite(d) ? Math.max(0, 18 - d) : -100;
+    const repeatPenalty = player.lastWallTargetId === opp.id ? 2.5 : 0;
+    return { opp, d, score: urgency - repeatPenalty };
+  }).sort((a,b) => b.score - a.score);
+
+  const pool = ranked.slice(0, Math.min(3, ranked.length));
+  const weights = pool.map((x, i) => Math.max(1, 5 - i * 1.5));
+  const total = weights.reduce((a,b) => a+b, 0);
+  let roll = Math.random() * total;
+  for (let i=0; i<pool.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return pool[i].opp;
   }
-  return target;
+  return pool[0].opp;
 }
 
 function botTryPlaceBlockingWall(player, difficulty = getDifficultyInfo()) {
   const target = getBotTarget(player);
   if (!target) return false;
+  player.lastWallTargetId = target.id;
 
   const targetDistBefore = computeGoalDistances(target.side)[target.row][target.col];
   const ownDistBefore = computeGoalDistances(player.side)[player.row][player.col];
@@ -1142,7 +1660,7 @@ function botTryPlaceBlockingWall(player, difficulty = getDifficultyInfo()) {
   }
 
   // Ne pose pas un mur inutile juste pour utiliser une barrière.
-  const minimumGain = difficulty === DIFFICULTIES.expert ? 0 : 0.5;
+  const minimumGain = difficulty === DIFFICULTIES.expert ? 1 : difficulty === DIFFICULTIES.hard ? 1 : 0.8;
   if (!best || bestScore < minimumGain) return false;
 
   return placeWall(player, best[0], best[1], best[2]);
@@ -1266,7 +1784,7 @@ function loadShop() {
   const raw = localStorage.getItem(CONFIG.SHOP_KEY);
   let shop;
   if (!raw) {
-    shop = { owned: ['classic'], equipped: 'classic', effectOwned: ['trail'], effectEquipped: 'trail' };
+    shop = { owned: ['classic'], equipped: 'classic', effectOwned: ['trail'], effectEquipped: 'trail', boardOwned: ['classic'] };
   } else {
     try {
       const parsed = JSON.parse(raw);
@@ -1275,12 +1793,15 @@ function loadShop() {
         equipped: typeof parsed.equipped === 'string' ? parsed.equipped : 'classic',
         effectOwned: Array.isArray(parsed.effectOwned) ? parsed.effectOwned.slice() : ['trail'],
         effectEquipped: typeof parsed.effectEquipped === 'string' ? parsed.effectEquipped : 'trail',
+        boardOwned: Array.isArray(parsed.boardOwned) ? parsed.boardOwned.slice() : ['classic'],
       };
     } catch {
-      shop = { owned: ['classic'], equipped: 'classic', effectOwned: ['trail'], effectEquipped: 'trail' };
+      shop = { owned: ['classic'], equipped: 'classic', effectOwned: ['trail'], effectEquipped: 'trail', boardOwned: ['classic'] };
     }
   }
   if (!Array.isArray(shop.effectOwned)) shop.effectOwned = ['trail'];
+  if (!Array.isArray(shop.boardOwned)) shop.boardOwned = ['classic'];
+  if (!shop.boardOwned.includes('classic')) shop.boardOwned.unshift('classic');
   if (!shop.effectOwned.includes('trail')) shop.effectOwned.unshift('trail');
   if (!EFFECTS.some(e => e.id === shop.effectEquipped) || !shop.effectOwned.includes(shop.effectEquipped)) shop.effectEquipped = 'trail';
   // Le skin Classique doit toujours être possédé, quoi qu'il arrive.
@@ -1405,7 +1926,7 @@ function buildBoardThemeCardHTML(theme, shop) {
 
 function getEquippedEffect(){ const shop=loadShop(); return EFFECTS.find(e=>e.id===shop.effectEquipped)||EFFECTS[0]; }
 function effectOwned(id){ const s=loadShop(); return s.effectOwned.includes(id); }
-window.buyEffectFromShop=function(id){ const e=EFFECTS.find(x=>x.id===id); if(!e)return; const s=loadShop(); if(s.effectOwned.includes(id))return; if(loadCoins()<e.price){showShopFeedback('🪙 Jetons insuffisants',true);return;} addCoins(-e.price); s.effectOwned.push(id); saveShop(s); showShopFeedback(`✨ ${e.name} acheté !`,false); renderShopPanel(); };
+window.buyEffectFromShop=function(id){ const e=EFFECTS.find(x=>x.id===id); if(!e)return; const s=loadShop(); if(s.effectOwned.includes(id))return; if(loadCoins()<e.price){showShopFeedback('🪙 Jetons insuffisants',true);return;} addCoins(-e.price); s.effectOwned.push(id); s.effectEquipped=id; saveShop(s); showShopFeedback(`✨ ${e.name} acheté et équipé !`,false); renderShopPanel(); };
 window.equipEffectFromShop=function(id){ const s=loadShop(); if(!s.effectOwned.includes(id))return; s.effectEquipped=id; saveShop(s); renderShopPanel(); };
 function buildEffectCardHTML(e,shop){
   const owned=shop.effectOwned.includes(e.id), equipped=shop.effectEquipped===e.id;
@@ -1413,16 +1934,115 @@ function buildEffectCardHTML(e,shop){
   const fx=`<div class="preview-fx fx-${e.id}"><i></i><i></i><i></i><i></i><i></i></div>`;
   return `<div class="effect-shop-card ${owned?'owned':''} ${equipped?'equipped':''}"><div class="effect-preview effect-${e.id}"><div class="preview-pawn"></div>${fx}</div><div class="effect-rarity">${e.rarity}</div><div class="effect-shop-name">${e.name}</div><div class="effect-shop-desc">${e.desc}</div><div class="effect-price">${e.price?'🪙 '+e.price:'Gratuit'}</div>${action}</div>`;
 }
-function emitCosmeticEffect(type, player){ if(!player || !player.isHuman)return; const board=boardEl(); if(!board)return; const el=document.getElementById('pawn-'+player.id); if(!el)return; const effect=getEquippedEffect(); if(!effect)return; if(type==='card' && effect.id!=='portal') return; if(type==='move' && !['trail','spark','lightning','inferno','blizzard','galaxy','royal'].includes(effect.id)) return; const count={trail:4,spark:8,lightning:5,portal:10,inferno:12,blizzard:12,galaxy:14,royal:16}[effect.id]||6; const rect=board.getBoundingClientRect(), pr=el.getBoundingClientRect(); const bx=pr.left-rect.left+pr.width/2, by=pr.top-rect.top+pr.height/2; if(effect.id==='portal'||effect.id==='royal') { const ring=document.createElement('div'); ring.className='effect-ripple'; ring.style.left=bx+'px'; ring.style.top=by+'px'; ring.style.width=pr.width*.8+'px'; ring.style.height=pr.height*.8+'px'; ring.style.borderColor=effect.color; board.appendChild(ring); setTimeout(()=>ring.remove(),600); }
- const specialMap={lightning:'fx-lightning-real',portal:'fx-portal-real',inferno:'fx-inferno-real',blizzard:'fx-blizzard-real',galaxy:'fx-galaxy-real',royal:'fx-royal-real'};
- if(specialMap[effect.id]) {
-   const special=document.createElement('div');
-   special.className='effect-special '+specialMap[effect.id];
-   special.style.left=bx+'px'; special.style.top=by+'px';
-   board.appendChild(special);
-   setTimeout(()=>special.remove(),1100);
- }
- for(let i=0;i<count;i++){ const p=document.createElement('div'); p.className='effect-particle '+(effect.id==='galaxy'?'star':''); const size=effect.id==='royal'?5+Math.random()*5:4+Math.random()*5; p.style.width=size+'px';p.style.height=size+'px';p.style.background=effect.color; p.style.boxShadow=`0 0 8px ${effect.color}`; const ang=Math.random()*Math.PI*2, dist=12+Math.random()*24; p.style.left=bx+'px';p.style.top=by+'px';p.style.setProperty('--dx',Math.cos(ang)*dist+'px');p.style.setProperty('--dy',Math.sin(ang)*dist+'px'); board.appendChild(p); setTimeout(()=>p.remove(),700); }
+function emitCosmeticEffect(type, player){
+  if(!player || !player.isHuman) return;
+  const pawn=document.getElementById('pawn-'+player.id);
+  if(!pawn) return;
+  const effect=getEquippedEffect();
+  if(!effect) return;
+  if(type==='card' && !['portal','royal'].includes(effect.id)) return;
+  if(type==='move' && !['trail','spark','lightning','portal','inferno','blizzard','galaxy','royal'].includes(effect.id)) return;
+
+  // V24 : position calculée analytiquement depuis la grille, plutôt que
+  // mesurée sur le pion avec getBoundingClientRect().
+  // BUG TROUVÉ (cause réelle, pas un problème CSS) : juste avant cet appel,
+  // renderPawns() lance une animation Web Animations API sur le pion
+  // (un glissement de l'ancienne case vers la nouvelle, via `transform`).
+  // Cette transformation est appliquée immédiatement, de façon synchrone.
+  // Or getBoundingClientRect() renvoie la position ÉCRAN ACTUELLE, donc
+  // pendant l'image où l'animation démarre, elle renvoyait la position de
+  // l'ANCIENNE case (celle que le pion est en train de quitter) et non la
+  // nouvelle — l'effet se déclenchait bien, mais décalé d'une case, ce qui
+  // le rendait très facile à manquer voire invisible selon le sens du coup.
+  // On calcule donc la position directement à partir des coordonnées de
+  // grille (les mêmes que celles utilisées par renderPawns pour placer le
+  // pion), en l'ajoutant à la position réelle du plateau à l'écran : cette
+  // valeur est stable, qu'une animation soit en cours ou non.
+  const board = boardEl();
+  if (!board) return;
+  const boardRect = board.getBoundingClientRect();
+  const fxCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
+  const fxPawnSize = fxCellSize * 0.72;
+  const fxMargin = (fxCellSize - fxPawnSize) / 2;
+  const { x: fxCellX, y: fxCellY } = cellPixelPos(player.row, player.col);
+  const centerX = boardRect.left + fxCellX + fxMargin + fxPawnSize / 2;
+  const centerY = boardRect.top + fxCellY + fxMargin + fxPawnSize / 2;
+
+  const layer=document.createElement('div');
+  layer.className='pawn-effect-screen pawn-effect-screen-'+effect.id;
+  layer.style.position='fixed';
+  layer.style.left=centerX+'px';
+  layer.style.top=centerY+'px';
+  layer.style.width='1px';
+  layer.style.height='1px';
+  layer.style.zIndex='100000';
+  layer.style.pointerEvents='none';
+  layer.style.setProperty('--effect-color', effect.color);
+  document.body.appendChild(layer);
+
+  // Halo central : volontairement très visible, même sans particules.
+  const core=document.createElement('div');
+  core.className='pawn-effect-screen-core';
+  core.style.setProperty('--effect-color', effect.color);
+  layer.appendChild(core);
+
+  const count={trail:12,spark:26,lightning:18,portal:18,inferno:24,blizzard:24,galaxy:28,royal:30}[effect.id]||18;
+  for(let i=0;i<count;i++){
+    const part=document.createElement('i');
+    part.className='pawn-effect-screen-particle';
+    const angle=Math.random()*Math.PI*2;
+    const distance=(effect.id==='trail'?25:30)+Math.random()*(effect.id==='trail'?38:55);
+    const size=effect.id==='spark'?4+Math.random()*5:4+Math.random()*6;
+    part.style.width=size+'px';
+    part.style.height=size+'px';
+    part.style.background=effect.color;
+    part.style.boxShadow=`0 0 8px ${effect.color}, 0 0 18px ${effect.color}`;
+    part.style.setProperty('--dx',Math.cos(angle)*distance+'px');
+    part.style.setProperty('--dy',Math.sin(angle)*distance+'px');
+    part.style.setProperty('--delay',(Math.random()*0.06)+'s');
+    layer.appendChild(part);
+  }
+
+  if(effect.id==='lightning'){
+    const bolt=document.createElement('div');
+    bolt.className='pawn-effect-screen-bolt';
+    bolt.textContent='⚡';
+    bolt.style.color=effect.color;
+    layer.appendChild(bolt);
+  }
+  if(effect.id==='royal'){
+    const crown=document.createElement('div');
+    crown.className='pawn-effect-screen-crown';
+    crown.textContent='👑';
+    layer.appendChild(crown);
+    const ring=document.createElement('div');
+    ring.className='pawn-effect-screen-ring';
+    layer.appendChild(ring);
+  }
+  if(effect.id==='portal') {
+    // PORTAL V4: rendu autonome en vrais éléments DOM.
+    // Le portail est créé AVANT l'animation de carte et reste au-dessus de celle-ci.
+    layer.classList.add('screen-card-effect');
+    layer.style.zIndex='2147483647';
+    layer.style.width='1px'; layer.style.height='1px';
+    const portalBack=document.createElement('div'); portalBack.className='portal-fx-back'; layer.appendChild(portalBack);
+    const portalOuter=document.createElement('div'); portalOuter.className='portal-fx-ring portal-fx-outer'; layer.appendChild(portalOuter);
+    const portalMid=document.createElement('div'); portalMid.className='portal-fx-ring portal-fx-mid'; layer.appendChild(portalMid);
+    const portalInner=document.createElement('div'); portalInner.className='portal-fx-ring portal-fx-inner'; layer.appendChild(portalInner);
+    const portalVoid=document.createElement('div'); portalVoid.className='portal-fx-void'; layer.appendChild(portalVoid);
+    const portalBeam=document.createElement('div'); portalBeam.className='portal-fx-beam'; layer.appendChild(portalBeam);
+    for(let k=0;k<24;k++){
+      const p=document.createElement('i'); p.className='portal-fx-particle';
+      const a=(k/24)*Math.PI*2 + Math.random()*.2;
+      const r=42+Math.random()*42;
+      p.style.setProperty('--px',Math.cos(a)*r+'px'); p.style.setProperty('--py',Math.sin(a)*r*.58+'px');
+      p.style.setProperty('--pd',(Math.random()*.45)+'s');
+      p.style.setProperty('--ps',(2+Math.random()*4)+'px');
+      layer.appendChild(p);
+    }
+  }
+
+  setTimeout(()=>layer.remove(), effect.id==='portal'?1650:effect.id==='royal'?1350:1000);
 }
 
 function buildComingSoonShopHTML(icon, title, text) {
@@ -1518,7 +2138,9 @@ function showScreen(screen) {
 function openMenuPanel(type) {
   const panel = document.getElementById('menu-panel');
   const body = document.getElementById('menu-panel-body');
+  if (panel) panel.classList.toggle('fullscreen-panel', type === 'shop' || type === 'cards');
   
+  if (type === 'quests') { renderDailyQuestsPanel(); panel.classList.remove('hidden'); return; }
   if (type === 'modes') {
     const current = getSelectedPlayersCount();
     body.innerHTML = `
@@ -1723,12 +2345,49 @@ function buildBoardDOM() {
 
 function clearWallsFromDOM() { document.querySelectorAll('.wall-segment').forEach(el => el.remove()); }
 
+function updateBreakWallSelection() {
+  document.querySelectorAll('.wall-segment').forEach(el => {
+    el.classList.toggle('break-target', !!(state && state.pendingBreakWall));
+  });
+}
+
+function breakSelectedWall(key) {
+  if (!state || !state.pendingBreakWall || state.gameOver || !currentPlayer().isHuman) return;
+  const orientation = state.jointOrientations.get(key);
+  if (!orientation) return;
+  const [i, j] = key.split(',').map(Number);
+  for (const edge of getWallEdges(i, j, orientation)) state.walls.delete(edge);
+  state.jointOrientations.delete(key);
+  state.wallOwners.delete(key);
+  state.pendingBreakWall = false;
+  markCardUsed('wallbreak');
+  clearWallsFromDOM();
+  for (const [wallKey, wallOrientation] of state.jointOrientations.entries()) {
+    const [wi, wj] = wallKey.split(',').map(Number);
+    renderWall(wi, wj, wallOrientation);
+  }
+  updateBreakWallSelection();
+  updatePlayersHUD();
+  renderCardBar();
+  playSound('wall');
+  emitCosmeticEffect('card', currentPlayer());
+  showMessage('💥 Barrière détruite !', 2200);
+}
+
 function renderWall(i, j, orientation) {
   const rect = wallPixelRect(i, j, orientation);
   const el = document.createElement('div'); el.className = 'wall-segment';
   el.style.left = rect.x + 'px'; el.style.top = rect.y + 'px';
   el.style.width = rect.width + 'px'; el.style.height = rect.height + 'px';
+  el.dataset.wallKey = `${i},${j}`;
+  el.addEventListener('click', (event) => {
+    if (state && state.pendingBreakWall) {
+      event.stopPropagation();
+      breakSelectedWall(el.dataset.wallKey);
+    }
+  });
   boardEl().appendChild(el);
+  if (state && state.pendingBreakWall) el.classList.add('break-target');
 }
 
 function renderPawns() {
@@ -1746,6 +2405,16 @@ function renderPawns() {
     // Les bots gardent exactement leur couleur habituelle (jamais modifiée).
     if (player.isHuman) {
       applyPawnSkin(pawnEl, getEquippedSkin());
+      const hasRoyalAura = getEquippedEffect().id === 'royal';
+      let aura = pawnEl.querySelector('.pawn-aura');
+      if (hasRoyalAura && !aura) {
+        aura = document.createElement('div');
+        aura.className = 'pawn-aura pawn-aura-royal';
+        aura.innerHTML = '<span class="pawn-aura-crown">👑</span><span class="pawn-aura-sweep sweep-a"></span><span class="pawn-aura-sweep sweep-b"></span><span class="pawn-aura-core-ring"></span>' + '<i></i>'.repeat(12);
+        pawnEl.appendChild(aura);
+      } else if (!hasRoyalAura && aura) {
+        aura.remove();
+      }
     } else {
       pawnEl.className = 'pawn';
       pawnEl.style.background = player.color;
@@ -1895,6 +2564,7 @@ function showMessage(text, duration = 2200) {
 }
 
 function setMode(mode) {
+  if (state && mode !== 'breakwall') { state.pendingBreakWall = false; updateBreakWallSelection(); }
   state.mode = mode;
   document.getElementById('mode-move-btn').classList.toggle('active', mode === 'move');
   document.getElementById('mode-wall-btn').classList.toggle('active', mode === 'wall');
@@ -1941,12 +2611,13 @@ function hideRankUpNotification() { document.getElementById('rank-up-modal').cla
 
 
 function markCardUsed(id) {
-  if (!state || state.cardUsed.has(id)) return false;
+  if (!state || state.cardUsed.has(id) || state.cardPlayedThisTurn) return false;
   state.cardUsed.add(id);
+  state.cardPlayedThisTurn = true;
   return true;
 }
 function cardAvailable(id) {
-  return !!state && !state.gameOver && currentPlayer().isHuman && state.cardHand.includes(id) && !state.cardUsed.has(id);
+  return !!state && !state.gameOver && !state.cardPlayedThisTurn && !state.cardActivationPending && currentPlayer().isHuman && state.cardHand.includes(id) && !state.cardUsed.has(id);
 }
 function renderCardBar() {
   const bar=document.getElementById('card-bar'); if(!bar || !state) return;
@@ -1961,9 +2632,10 @@ function renderCardBar() {
   });
 }
 function resolveCardUse(id) {
-  if(!cardAvailable(id)) return;
+  if(!state || state.gameOver || state.cardPlayedThisTurn) { if(state) state.cardActivationPending=false; return; }
+  if(!state.cardHand.includes(id) || state.cardUsed.has(id) || !currentPlayer().isHuman) { state.cardActivationPending=false; return; }
+  state.cardActivationPending = false;
   playSound('card');
-  emitCosmeticEffect('card', currentPlayer());
   const c=cardById(id); if(!c) return;
   const player=currentPlayer();
   const effect=c.effect;
@@ -1972,9 +2644,17 @@ function resolveCardUse(id) {
     state.pendingFreeWall=true; markCardUsed(id); setMode('wall'); renderCardBar();
     showMessage('🧱 Barrière gratuite activée : choisis où la poser.',3000); return;
   }
-  if(effect==='recoverwall') {
-    player.wallsLeft += 1; markCardUsed(id); renderPawns(); renderCardBar();
-    showMessage('📦 +1 barrière récupérée !',2500); return;
+  if(effect==='breakwall') {
+    const wallKeys = [...state.jointOrientations.keys()];
+    if (!wallKeys.length) {
+      showMessage('💥 Il n’y a aucune barrière à détruire.',2500);
+      return;
+    }
+    state.pendingBreakWall = true;
+    state.cardPlayedThisTurn = true;
+    updateBreakWallSelection();
+    showMessage('💥 Clique sur la barrière que tu veux détruire.',4000);
+    return;
   }
   if(effect==='fortress') {
     state.pendingFreeWall=true; player.wallsLeft += 1; markCardUsed(id); setMode('wall'); renderPawns(); renderCardBar();
@@ -1994,8 +2674,39 @@ function resolveCardUse(id) {
   if(effect==='doubleturn') {
     markCardUsed(id); state.extraTurn=true; renderCardBar(); showMessage('🔄 Double tour activé !',3000); return;
   }
+  if(effect==='passwall') {
+    player.wallPassMoves = 1; markCardUsed(id); renderCardBar(); refreshHighlights();
+    showMessage('👻 Passe-muraille activé : ton prochain déplacement ignore les barrières.',3000); return;
+  }
+  if(effect==='thief') {
+    const targets = state.players.filter(p => p.id !== player.id && p.wallsLeft > 0);
+    if (!targets.length) { showMessage('🦹 Aucun adversaire n’a de barrière à voler.'); return; }
+    const target = targets[Math.floor(Math.random()*targets.length)];
+    target.wallsLeft -= 1; player.wallsLeft += 1; markCardUsed(id); renderPawns(); updatePlayersHUD(); renderCardBar();
+    showMessage(`🦹 Tu voles 1 barrière à ${target.name} !`,3000); return;
+  }
+  if(effect==='exchange') {
+    const targets = state.players.filter(p => p.id !== player.id && !isCellOccupied(p.row,p.col,player.id));
+    if (!targets.length) { showMessage('⇄ Aucun adversaire disponible pour l’échange.'); return; }
+    const target = targets[Math.floor(Math.random()*targets.length)];
+    const r=player.row, c=player.col; player.row=target.row; player.col=target.col; target.row=r; target.col=c;
+    markCardUsed(id); renderPawns(); renderCardBar();
+    showMessage(`⇄ Échange de position avec ${target.name} !`,3000); return;
+  }
+  if(effect==='teleport') {
+    const candidates=[];
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(isPlayableCell(r,c) && !isCellOccupied(r,c,player.id) && !(r===player.row&&c===player.col) && !isGoalCell(player.side,r,c)) candidates.push([r,c]);
+    if(!candidates.length) return;
+    const dest=candidates[Math.floor(Math.random()*candidates.length)];
+    markCardUsed(id); movePawn(player,dest[0],dest[1]); renderPawns(); emitCosmeticEffect('move', player); renderCardBar();
+    setTimeout(()=>{ if(checkWinAfterMove(player)) return; resolveChaosCell(player); if(checkWinAfterMove(player)) return; endTurn(); },420); return;
+  }
+  if(effect==='shield') {
+    if (!isChaosMode()) { showMessage('🛡️ Le Bouclier sera prêt pour une partie en Mode Chaos.',2800); return; }
+    player.chaosShield = 1; markCardUsed(id); renderCardBar(); showMessage('🛡️ Bouclier activé !',2500); return;
+  }
   if(effect==='sprint2' || effect==='jump3' || effect==='jump4' || effect==='jump5' || effect==='momentum' || effect==='legendaryrush') {
-    const maxSteps=effect==='sprint2'?2:effect==='jump3'?3:effect==='jump4'?4:5;
+    const maxSteps=effect==='sprint2'?2:effect==='jump3'?3:effect==='jump4'?4:effect==='momentum'?3:5;
     let moved=0; let cur=[player.row,player.col];
     for(let k=0;k<maxSteps;k++){
       const dist=computeGoalDistances(player.side);
@@ -2004,7 +2715,7 @@ function resolveCardUse(id) {
       if(isGoalCell(player.side,cur[0],cur[1])) break;
     }
     if(moved===0){ showMessage('Cette carte ne peut pas être utilisée ici.'); return; }
-    markCardUsed(id); movePawn(player,cur[0],cur[1]); renderPawns(); renderCardBar();
+    markCardUsed(id); movePawn(player,cur[0],cur[1]); renderPawns(); emitCosmeticEffect('move', player); renderCardBar();
     if(effect==='momentum' || effect==='legendaryrush') state.extraTurn=true;
     setTimeout(()=>{ if(checkWinAfterMove(player)) return; resolveChaosCell(player); if(checkWinAfterMove(player)) return; endTurn(); },420); return;
   }
@@ -2057,9 +2768,11 @@ function runCardActivationAnimation(card, player, callback) {
 
 function useCard(id) {
   if(!cardAvailable(id)) return;
+  state.cardActivationPending = true;
   const c=cardById(id);
   const player=currentPlayer();
   if(!c || !player) return;
+  player.cardsUsedThisGame=(player.cardsUsedThisGame||0)+1; updateDailyQuest('card'); updateDailyQuest('combo');
   uiLocked = true;
   playSound('card');
   emitCosmeticEffect('card', player);
@@ -2080,10 +2793,11 @@ function onCellClick(r, c) {
   const player = currentPlayer(); if (!player.isHuman) return;
   if (!getValidMoveCells(player).some(([vr, vc]) => vr === r && vc === c)) return;
 
-  uiLocked = true; movePawn(player, r, c);
+  uiLocked = true; movePawn(player, r, c); player.movesThisGame=(player.movesThisGame||0)+1; updateDailyQuest('move');
   if (player.chaosBonusSteps) player.chaosBonusSteps = 0;
   if (player.wallPassMoves) player.wallPassMoves = 0;
   renderPawns();
+  emitCosmeticEffect('move', player);
   setTimeout(() => { uiLocked = false; if (checkWinAfterMove(player)) return; resolveChaosCell(player); if (checkWinAfterMove(player)) return; endTurn(); }, 420);
 }
 
@@ -2097,7 +2811,7 @@ function onJointClick(i, j) {
 
   uiLocked = true;
   if (freeWall) { state.pendingFreeWall = false; markCardUsed('freewall'); }
-  placeWall(player, i, j, state.orientation, freeWall);
+  placeWall(player, i, j, state.orientation, freeWall); player.wallsPlacedThisGame=(player.wallsPlacedThisGame||0)+1; updateDailyQuest('wall'); updateDailyQuest('combo');
   renderCardBar();
   setTimeout(() => { uiLocked = false; endTurn(); }, 250);
 }
@@ -2108,6 +2822,11 @@ function endGame(humanWon, winnerName) {
   playSound(humanWon ? 'win' : 'lose');
   if (humanWon) emitCosmeticEffect('move', state.players.find(p=>p.isHuman));
   recordResult(humanWon);
+  updateDailyQuest('game');
+  if(humanWon) updateDailyQuest('win');
+  if(state.chaos) updateDailyQuest('chaosgame');
+  if(humanWon && ((state.players.find(p=>p.isHuman)?.movesThisGame)||0)<=25) updateDailyQuest('quickwin');
+  updateDailyQuest('combo');
   
   const difficulty = getDifficultyInfo();
   const deltaTrophies = humanWon ? difficulty.trophiesWin : -difficulty.trophiesLoss;
@@ -2125,6 +2844,7 @@ function forfeitGame() { if (!state.gameOver) endGame(false, 'Abandon'); }
 function setupEventListeners() {
   document.getElementById('menu-play-btn').addEventListener('click', startGame);
   document.getElementById('menu-shop-btn').addEventListener('click', () => openMenuPanel('shop'));
+  document.getElementById('menu-quests-btn').addEventListener('click', () => openMenuPanel('quests'));
   document.getElementById('menu-cards-btn').addEventListener('click', () => openMenuPanel('cards'));
   document.getElementById('menu-game-modes-btn').addEventListener('click', () => openMenuPanel('modes'));
   document.getElementById('menu-trophies-btn').addEventListener('click', () => openMenuPanel('trophies'));
@@ -2136,7 +2856,15 @@ function setupEventListeners() {
   document.getElementById('menu-panel-close').addEventListener('click', closeMenuPanel);
   document.getElementById('main-menu-btn').addEventListener('click', () => { hideEndModal(); showScreen('menu'); });
 
-  document.getElementById('menu-panel').addEventListener('click', (event) => { if (event.target.id === 'menu-panel') closeMenuPanel(); });
+  document.getElementById('menu-panel').addEventListener('click', (event) => {
+    if (event.target.id === 'menu-panel') { closeMenuPanel(); return; }
+    const bonusBtn = event.target.closest && event.target.closest('#daily-bonus-claim-btn');
+    if (bonusBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      window.claimDailyBonus();
+    }
+  }, true);
 
   document.getElementById('mode-move-btn').addEventListener('click', () => { if (currentPlayer().isHuman && !state.gameOver) setMode('move'); });
   document.getElementById('mode-wall-btn').addEventListener('click', () => { if (currentPlayer().isHuman && !state.gameOver) setMode('wall'); });
@@ -2148,6 +2876,10 @@ function setupEventListeners() {
   document.getElementById('forfeit-btn').addEventListener('click', forfeitGame);
   
   document.getElementById('rank-up-close-btn').addEventListener('click', hideRankUpNotification);
+
+  document.getElementById('pack-opening-close').addEventListener('click', closePackOpening);
+  document.getElementById('pko-reveal-all-btn').addEventListener('click', revealAllPackCards);
+  window.addEventListener('resize', () => { if (packOpenPhase !== 'idle') resizePackCanvas(); });
 }
 
 /* ============================================================
@@ -2157,9 +2889,39 @@ function setupEventListeners() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('.audio-toggle-btn')) playSound('click'); }, {passive:true});
+  const loading = document.getElementById('loading-screen');
+  const progress = document.getElementById('loading-progress');
+  const percent = document.getElementById('loading-percent');
+  const status = document.getElementById('loading-status');
+  const stageLabel = document.getElementById('loading-stage-label');
+  const tip = document.getElementById('loading-tip-text');
+  const stages = [
+    [0,   4,  'Ouverture du plateau', 'Initialisation du jeu…', 'Chaque barrière peut changer complètement le chemin.'],
+    [650, 22, 'Préparation des cartes', 'Chargement des cartes…', 'Garde tes cartes fortes pour le bon moment.'],
+    [1350,43, 'Mise en place des joueurs', 'Création de la partie…', 'Avancer vite ne suffit pas : pense à tes adversaires.'],
+    [2050,65, 'Préparation de la boutique', 'Synchronisation des personnalisations…', 'Les cosmétiques changent le style, pas les règles.'],
+    [2750,82, 'Vérifications finales', 'Dernières vérifications…', 'Tout est presque prêt.'],
+    [3450,94, 'Finalisation', 'Encore un instant…', 'Le plateau arrive.'],
+    [4100,100,'Prêt !', 'La partie est prête.', 'À toi de jouer.']
+  ];
+  let lastPct=-1;
+  const setLoading=(p,label,statusText,tipText)=>{p=Math.max(0,Math.min(100,Math.round(p)));if(p!==lastPct){if(progress)progress.style.width=p+'%';if(percent)percent.textContent=p+'%';lastPct=p;}if(stageLabel)stageLabel.textContent=label;if(status)status.textContent=statusText;if(tip)tip.textContent=tipText;};
+  document.addEventListener('click',(e)=>{if(e.target.closest('button')&&!e.target.closest('.audio-toggle-btn'))playSound('click');},{passive:true});
+
+  // Prépare immédiatement le jeu derrière le splash. Le splash est une vraie
+  // séquence de lancement de 4,4 s, sans raccourci lié à reduced-motion.
+  setLoading(...stages[0].slice(1));
   setupEventListeners();
   ensureStarterCards();
-  updateMenuDisplays(); // Charge l'affichage correct des monnaies sur l'écran d'accueil
+  updateMenuDisplays();
   showScreen('menu');
+  stages.slice(1).forEach(stage=>setTimeout(()=>setLoading(...stage.slice(1)),stage[0]));
+
+  setTimeout(()=>{
+    if(!loading)return;
+    loading.setAttribute('aria-busy','false');
+    document.body.classList.remove('loading-active');
+    loading.classList.add('is-hidden');
+    setTimeout(()=>loading.remove(),560);
+  },4380);
 });

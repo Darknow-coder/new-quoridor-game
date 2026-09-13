@@ -8,7 +8,57 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="loading-active">
+
+  <!-- ==================== ÉCRAN DE CHARGEMENT ==================== -->
+  <div id="loading-screen" class="loading-screen" aria-label="Chargement du jeu" aria-busy="true" style="background:#1a0b21 !important;opacity:1 !important;visibility:visible !important;display:flex !important;position:fixed !important;inset:0 !important;z-index:2147483647 !important;">
+    <div class="loading-noise"></div>
+    <div class="loading-orbit loading-orbit-a"></div>
+    <div class="loading-orbit loading-orbit-b"></div>
+    <div class="loading-beam loading-beam-a"></div>
+    <div class="loading-beam loading-beam-b"></div>
+
+    <div class="loading-content">
+      <div class="loading-logo-shell" aria-hidden="true">
+        <div class="loading-logo-glow"></div>
+        <div class="loading-logo-ring loading-ring-one"></div>
+        <div class="loading-logo-ring loading-ring-two"></div>
+        <div class="loading-board-mark">
+          <span></span><span></span><span></span>
+          <span></span><b></b><span></span>
+          <span></span><span></span><span></span>
+        </div>
+        <div class="loading-pawn-mark"></div>
+      </div>
+
+      <div class="loading-brand">
+        <div class="loading-kicker">QUORIDOR 4</div>
+        <div class="loading-title">Préparation de la partie</div>
+        <div class="loading-subtitle" id="loading-status">Initialisation du jeu…</div>
+      </div>
+
+      <div class="loading-progress-wrap">
+        <div class="loading-progress-track">
+          <div id="loading-progress" class="loading-progress-fill"></div>
+          <div class="loading-progress-glint"></div>
+        </div>
+        <div class="loading-progress-meta">
+          <span id="loading-stage-label">Ouverture du plateau</span>
+          <strong id="loading-percent">0%</strong>
+        </div>
+      </div>
+
+      <div class="loading-tip" aria-live="polite">
+        <span class="loading-tip-dot"></span>
+        <span id="loading-tip-text">Chaque barrière peut changer complètement le chemin.</span>
+      </div>
+    </div>
+
+    <div class="loading-footer">
+      <span>SOLO • 2 À 5 JOUEURS</span>
+      <span>CHARGEMENT</span>
+    </div>
+  </div>
 
   <!-- ==================== MENU PRINCIPAL ==================== -->
   <section id="main-menu">
@@ -62,6 +112,10 @@
         <span class="menu-card-icon">🃏</span>
         <span>Cartes</span>
       </button>
+      <button id="menu-quests-btn" class="menu-shop-btn menu-quests-menu-btn">
+        <span class="menu-card-icon">🎯</span>
+        <span>Quêtes</span>
+      </button>
     </div>
 
     <div class="menu-grid">
@@ -93,16 +147,33 @@
   <!-- ==================== PANELS DU MENU ==================== -->
   <div id="pack-opening-overlay" class="pack-opening-overlay hidden" aria-hidden="true">
     <div class="pack-opening-backdrop"></div>
-    <div class="pack-opening-modal" role="dialog" aria-modal="true" aria-label="Ouverture du pack">
+    <div class="pko-screenflash" id="pko-screenflash" aria-hidden="true"></div>
+    <div class="pack-opening-modal" id="pack-opening-modal" role="dialog" aria-modal="true" aria-label="Ouverture du pack">
+      <canvas id="pack-fx-canvas" class="pack-fx-canvas" aria-hidden="true"></canvas>
       <div class="pack-opening-title">🎁 PACK DE CARTES</div>
-      <div class="pack-opening-subtitle" id="pack-opening-subtitle">Clique sur le pack pour l’ouvrir</div>
+      <div class="pack-opening-subtitle" id="pack-opening-subtitle">Le pack arrive…</div>
+
       <div class="pack-visual" id="pack-visual">
-        <div class="pack-glow"></div>
-        <div class="pack-shine"></div>
-        <div class="pack-emoji">🎁</div>
-        <div class="pack-label">PACK</div>
+        <div class="pko-rays" id="pko-rays"></div>
+        <div class="pko-aura" id="pko-aura"></div>
+        <div class="pko-orbit" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="pko-shell" id="pko-shell">
+          <div class="pko-shell-shine"></div>
+          <div class="pko-seam"></div>
+          <div class="pko-emoji">🎁</div>
+          <div class="pko-shell-label">PACK</div>
+        </div>
+        <div class="pko-flash" id="pko-flash"></div>
+        <div class="pko-shock" id="pko-shock"></div>
+        <div class="pko-tap-hint" id="pko-tap-hint">👆 Touche le pack</div>
       </div>
+
       <div class="pack-reveal-stage" id="pack-reveal-stage"></div>
+
+      <div class="pko-reveal-footer hidden" id="pko-reveal-footer">
+        <button id="pko-reveal-all-btn" class="pko-skip-btn" type="button">Tout révéler ⏩</button>
+      </div>
+
       <button id="pack-opening-close" class="pack-opening-close hidden">CONTINUER</button>
     </div>
   </div>
