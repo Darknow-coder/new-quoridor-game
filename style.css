@@ -3057,3 +3057,172 @@ body:not(.loading-active) #main-menu{visibility:visible!important;opacity:1!impo
   .menu-primary-btn { margin-top:23px; }
   .menu-bottom-nav { min-height:58px; }
 }
+
+/* ============================================================
+   👥 AMIS
+   ============================================================ */
+
+.friends-hidden {
+    display: none !important;
+}
+
+#friends-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #10131a;
+}
+
+.friends-screen {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 24px;
+}
+
+.friends-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.friends-close {
+    width: 48px;
+    height: 48px;
+    border: 0;
+    border-radius: 14px;
+    font-size: 30px;
+    cursor: pointer;
+}
+
+.friends-title-wrap {
+    flex: 1;
+}
+
+.friends-kicker {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 800;
+    opacity: .6;
+    letter-spacing: 2px;
+}
+
+.friends-title {
+    margin: 3px 0;
+    font-size: 32px;
+}
+
+.friends-subtitle {
+    margin: 0;
+    opacity: .65;
+}
+
+.friends-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.friends-tab {
+    border: 0;
+    border-radius: 14px;
+    padding: 13px 18px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.friends-tab.active {
+    transform: translateY(-1px);
+}
+
+.friends-tab span {
+    display: inline-flex;
+    min-width: 20px;
+    justify-content: center;
+    margin-left: 5px;
+}
+
+.friends-add-box {
+    padding: 20px;
+    border-radius: 20px;
+    margin-bottom: 22px;
+}
+
+.friends-add-title {
+    font-size: 19px;
+    font-weight: 800;
+    margin-bottom: 13px;
+}
+
+.friends-add-row {
+    display: flex;
+    gap: 10px;
+}
+
+.friends-add-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 14px 16px;
+    border-radius: 13px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.18);
+    color: inherit;
+    font-size: 16px;
+}
+
+.friends-add-row button {
+    padding: 14px 20px;
+    border: 0;
+    border-radius: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.friends-add-message {
+    min-height: 20px;
+    margin: 10px 0 0;
+    font-size: 14px;
+    opacity: .8;
+}
+
+.friends-empty {
+    text-align: center;
+    padding: 60px 20px;
+    opacity: .8;
+}
+
+.friends-empty-icon {
+    font-size: 55px;
+    margin-bottom: 12px;
+}
+
+.friends-empty h2 {
+    margin: 0 0 8px;
+}
+
+.friends-empty p {
+    margin: 0;
+    opacity: .65;
+}
+
+@media (max-width: 600px) {
+
+    .friends-screen {
+        padding: 16px;
+    }
+
+    .friends-title {
+        font-size: 27px;
+    }
+
+    .friends-add-row {
+        flex-direction: column;
+    }
+
+    .friends-add-row button {
+        width: 100%;
+    }
+
+}
