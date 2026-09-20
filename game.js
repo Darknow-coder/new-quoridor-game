@@ -28,16 +28,422 @@ const CONFIG = {
   CLAIMED_REWARDS_KEY: 'quoridor4_claimed_rewards',
   SHOP_KEY: 'quoridor4_shop',
   DIFFICULTY_KEY: 'quoridor4_difficulty',
+  PROFILE_KEY: 'quoridor4_profile',
+  XP_KEY: 'quoridor4_xp',
+  XP_PER_LEVEL: 200,
+  LEVEL_REWARDS_CLAIMED_KEY: 'quoridor4_level_rewards_claimed',
   MODE_KEY: 'quoridor4_selected_players_count',
   GAME_MODE_KEY: 'quoridor4_game_mode',
   CHAOS_UNLOCK_TROPHIES: 300,
-  CHAOS_SPECIAL_COUNT: 8
+  CHAOS_SPECIAL_COUNT: 8,
+  ACHIEVEMENTS_KEY: 'quoridor4_achievements_v1'
 
 };
 
-// MODE TEST BOUTIQUE — temporaire avant publication : 50 000 pièces à chaque lancement.
-// À SUPPRIMER avant la version publique pour repartir avec une économie normale.
-localStorage.setItem(CONFIG.COINS_KEY, '50000');
+// MODE TEST BOUTIQUE désactivé pour l’audit de persistance.
+// La monnaie sauvegardée doit maintenant rester intacte entre deux lancements.
+
+/* ============================================================
+   PROFIL JOUEUR — PSEUDO + SAUVEGARDE
+   ============================================================ */
+const DEFAULT_PROFILE = { name: '' };
+
+function sanitizeProfileName(value) {
+  return String(value || '')
+    .replace(/[<>"'`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 16);
+}
+
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(CONFIG.PROFILE_KEY);
+    if (!raw) return { ...DEFAULT_PROFILE };
+    const parsed = JSON.parse(raw);
+    return { name: sanitizeProfileName(parsed?.name) };
+  } catch {
+    return { ...DEFAULT_PROFILE };
+  }
+}
+
+function saveProfile(profile) {
+  const clean = { name: sanitizeProfileName(profile?.name) };
+  localStorage.setItem(CONFIG.PROFILE_KEY, JSON.stringify(clean));
+  return clean;
+}
+
+function getPlayerName() {
+  const name = loadProfile().name;
+  return name || 'Aventurier';
+}
+
+function loadXP() {
+  const raw = localStorage.getItem(CONFIG.XP_KEY);
+  const value = raw !== null ? parseInt(raw, 10) : 0;
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function saveXP(value) {
+  localStorage.setItem(CONFIG.XP_KEY, String(Math.max(0, Math.floor(Number(value) || 0))));
+}
+
+function getXPLevelInfo(xp = loadXP()) {
+  const safeXP = Math.max(0, Math.floor(Number(xp) || 0));
+  const level = Math.floor(safeXP / CONFIG.XP_PER_LEVEL) + 1;
+  const currentLevelXP = (level - 1) * CONFIG.XP_PER_LEVEL;
+  const nextLevelXP = level * CONFIG.XP_PER_LEVEL;
+  const inLevel = safeXP - currentLevelXP;
+  const needed = CONFIG.XP_PER_LEVEL;
+  const pct = Math.max(0, Math.min(100, (inLevel / needed) * 100));
+  return { level, xp: safeXP, currentLevelXP, nextLevelXP, inLevel, needed, pct };
+}
+
+function addXP(delta) {
+  const before = getXPLevelInfo();
+  const amount = Math.max(0, Math.floor(Number(delta) || 0));
+  const afterXP = before.xp + amount;
+  saveXP(afterXP);
+  const after = getXPLevelInfo(afterXP);
+  updateMenuDisplays();
+  return { amount, before, after, leveledUp: after.level > before.level };
+}
+
+const LEVEL_REWARDS = [
+  { level: 2, icon: '🪙', type: 'coins', amount: 100, label: '100 pièces' },
+  { level: 3, icon: '🃏', type: 'card', rarity: 'Commune', amount: 1, label: '1 carte commune' },
+  { level: 4, icon: '🪙', type: 'coins', amount: 150, label: '150 pièces' },
+  { level: 5, icon: '🎁', type: 'coins', amount: 250, label: '250 pièces' },
+  { level: 6, icon: '🃏', type: 'card', rarity: 'Commune', amount: 1, label: '1 carte commune' },
+  { level: 7, icon: '🪙', type: 'coins', amount: 200, label: '200 pièces' },
+  { level: 8, icon: '🃏', type: 'card', rarity: 'Rare', amount: 1, label: '1 carte rare' },
+  { level: 10, icon: '🎁', type: 'coins', amount: 400, label: '400 pièces' },
+  { level: 12, icon: '🪙', type: 'coins', amount: 250, label: '250 pièces' },
+  { level: 15, icon: '🃏', type: 'card', rarity: 'Rare', amount: 2, label: '2 cartes rares' },
+  { level: 20, icon: '🎁', type: 'coins', amount: 600, label: '600 pièces' },
+  { level: 25, icon: '🃏', type: 'card', rarity: 'Épique', amount: 1, label: '1 carte épique' },
+  { level: 30, icon: '👑', type: 'coins', amount: 1000, label: '1 000 pièces' }
+];
+
+function loadLevelRewardsClaimed() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CONFIG.LEVEL_REWARDS_CLAIMED_KEY) || '[]');
+    return Array.isArray(raw) ? raw.map(Number).filter(Number.isFinite) : [];
+  } catch { return []; }
+}
+
+function saveLevelRewardsClaimed(levels) {
+  localStorage.setItem(CONFIG.LEVEL_REWARDS_CLAIMED_KEY, JSON.stringify([...new Set(levels.map(Number))]));
+}
+
+function randomCardByRarity(rarity) {
+  const matches = CARDS.filter(c => c.rarity === rarity);
+  return matches[Math.floor(Math.random() * matches.length)] || CARDS[0];
+}
+
+function renderLevelRewardsPanel() {
+  const body = document.getElementById('menu-panel-body');
+  if (!body) return;
+  const info = getXPLevelInfo();
+  const claimed = loadLevelRewardsClaimed();
+  const available = LEVEL_REWARDS.filter(r => info.level >= r.level && !claimed.includes(r.level)).length;
+  const next = LEVEL_REWARDS.find(r => info.level < r.level);
+  const rows = LEVEL_REWARDS.map(r => {
+    const unlocked = info.level >= r.level;
+    const isClaimed = claimed.includes(r.level);
+    const cls = unlocked ? 'level-reward-card unlocked' : 'level-reward-card locked';
+    let action = '';
+    if (isClaimed) action = '<span class="level-reward-status claimed">✓ RÉCUPÉRÉE</span>';
+    else if (unlocked) action = `<button class="level-reward-claim" onclick="claimLevelReward(${r.level}, this)">RÉCUPÉRER</button>`;
+    else action = `<span class="level-reward-status">🔒 Niveau ${r.level}</span>`;
+    return `<div class="${cls}">
+      <div class="level-reward-level">NIV. ${r.level}</div>
+      <div class="level-reward-icon">${r.icon}</div>
+      <div class="level-reward-main"><strong>${r.label}</strong><small>${unlocked ? 'Récompense débloquée' : 'Progresse pour la débloquer'}</small></div>
+      <div class="level-reward-action">${action}</div>
+    </div>`;
+  }).join('');
+  body.innerHTML = `
+    <div class="level-rewards-header">
+      <div><div class="profile-panel-kicker">PROGRESSION</div><h2>⭐ Récompenses de niveau</h2><p class="panel-subtitle">Niveau ${info.level} · ${info.inLevel}/${info.needed} XP</p></div>
+      <div class="level-rewards-count">${available ? `🎁 ${available} à récupérer` : (next ? `Prochaine : niv. ${next.level}` : '👑 Tout récupéré')}</div>
+    </div>
+    <div class="level-rewards-xp"><div class="profile-xp-track"><span style="width:${info.pct}%"></span></div></div>
+    <div class="level-rewards-list">${rows}</div>`;
+}
+
+window.claimLevelReward = function(level, btnEl) {
+  const reward = LEVEL_REWARDS.find(r => r.level === Number(level));
+  if (!reward) return;
+  const info = getXPLevelInfo();
+  const claimed = loadLevelRewardsClaimed();
+  if (info.level < reward.level || claimed.includes(reward.level)) return;
+  if (reward.type === 'coins') {
+    addCoins(reward.amount);
+  } else if (reward.type === 'card') {
+    for (let i = 0; i < reward.amount; i++) addCardToCollection(randomCardByRarity(reward.rarity).id, 1);
+  }
+  claimed.push(reward.level);
+  saveLevelRewardsClaimed(claimed);
+  openMenuPanel('levels');
+};
+
+function getProfileInitial(name) {
+  const clean = sanitizeProfileName(name);
+  return clean ? clean.charAt(0).toUpperCase() : 'A';
+}
+
+function renderProfilePanel() {
+  const body = document.getElementById('menu-panel-body');
+  if (!body) return;
+  const profile = loadProfile();
+  const trophies = loadTrophies();
+  const coins = loadCoins();
+  const stats = loadStats();
+  const { currentRank } = getRankInfo(trophies);
+  const xpInfo = getXPLevelInfo();
+  const level = xpInfo.level;
+  const winRate = stats.games ? Math.round((stats.wins / stats.games) * 100) : 0;
+  const next = TROPHY_ROAD.find(r => r.req > trophies)?.req ?? null;
+  const rangeStart = TROPHY_ROAD.filter(r => r.req <= trophies).at(-1)?.req ?? 0;
+  const range = next === null ? 1 : Math.max(1, next - rangeStart);
+  const pct = next === null ? 100 : Math.max(0, Math.min(100, ((trophies - rangeStart) / range) * 100));
+
+  body.innerHTML = `
+    <div class="profile-panel">
+      <div class="profile-panel-hero">
+        <div class="profile-avatar-large" id="profile-panel-avatar">${getProfileInitial(profile.name)}</div>
+        <div class="profile-hero-main">
+          <div class="profile-panel-kicker">PROFIL JOUEUR</div>
+          <h2>${escapeHTML(profile.name || 'Aventurier')}</h2>
+          <div class="profile-rank-line">${currentRank.icon} ${currentRank.name} <span>•</span> Niveau ${level}</div>
+        </div>
+        <button type="button" class="profile-edit-btn" onclick="editProfileName()">✏️ Modifier</button>
+      </div>
+
+      <div class="profile-profile-grid">
+        <div class="profile-stat-card"><span>🏆</span><b>${trophies}</b><small>Trophées</small></div>
+        <div class="profile-stat-card"><span>🪙</span><b>${coins}</b><small>Pièces</small></div>
+        <div class="profile-stat-card"><span>🎮</span><b>${stats.games}</b><small>Parties</small></div>
+        <div class="profile-stat-card"><span>🏅</span><b>${stats.wins}</b><small>Victoires</small></div>
+        <div class="profile-stat-card"><span>📈</span><b>${winRate}%</b><small>Win rate</small></div>
+        <div class="profile-stat-card"><span>🔥</span><b>${stats.bestStreak}</b><small>Meilleure série</small></div>
+      </div>
+
+      <div class="profile-xp-card">
+        <div class="profile-xp-head"><span>⭐ Niveau ${xpInfo.level}</span><strong>${xpInfo.inLevel}/${xpInfo.needed} XP</strong></div>
+        <div class="profile-xp-track"><span style="width:${xpInfo.pct}%"></span></div>
+        <div class="profile-xp-foot"><span>${xpInfo.xp} XP au total</span><span>${xpInfo.needed - xpInfo.inLevel} XP avant le niveau ${xpInfo.level + 1}</span></div>
+      </div>
+
+      <div class="profile-progress-card">
+        <div class="profile-progress-head"><span>Progression des trophées</span><strong>${next === null ? 'Rang maximum' : `${next - trophies} 🏆 avant ${next}`}</strong></div>
+        <div class="profile-progress-track"><span style="width:${pct}%"></span></div>
+      </div>
+
+      <div class="profile-quick-actions">
+        <button type="button" onclick="openMenuPanel('trophies')">🏆 Route des trophées</button>
+        <button type="button" onclick="openMenuPanel('stats')">📊 Voir mes statistiques</button>
+      </div>
+    </div>`;
+}
+
+window.editProfileName = function() {
+  const profile = loadProfile();
+  const body = document.getElementById('menu-panel-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="profile-edit-panel">
+      <div class="profile-panel-kicker">MODIFIER LE PROFIL</div>
+      <h2>Ton pseudo</h2>
+      <p class="panel-subtitle">2 à 16 caractères. Tu peux le modifier quand tu veux.</p>
+      <label class="profile-input-wrap profile-input-wrap-panel">
+        <span>Pseudo</span>
+        <input id="profile-edit-input" type="text" maxlength="16" value="${escapeHTML(profile.name)}" spellcheck="false" autocomplete="nickname">
+      </label>
+      <div class="profile-input-hint"><span id="profile-edit-count">${profile.name.length}/16</span><span id="profile-edit-error"></span></div>
+      <div class="profile-edit-actions">
+        <button type="button" class="profile-secondary-btn" onclick="renderProfilePanel()">ANNULER</button>
+        <button type="button" class="profile-confirm-btn profile-panel-save" onclick="saveEditedProfile()">ENREGISTRER <span>✓</span></button>
+      </div>
+    </div>`;
+  const input = document.getElementById('profile-edit-input');
+  if (input) {
+    input.focus(); input.select();
+    input.addEventListener('input', () => { const c=document.getElementById('profile-edit-count'); if(c)c.textContent=`${input.value.length}/16`; });
+  }
+};
+
+window.saveEditedProfile = function() {
+  const input = document.getElementById('profile-edit-input');
+  const error = document.getElementById('profile-edit-error');
+  const name = sanitizeProfileName(input?.value);
+  if (name.length < 2) { if(error) error.textContent='Pseudo trop court'; return; }
+  saveProfile({ name });
+  updateMenuDisplays();
+  renderProfilePanel();
+  showShopFeedback('👤 Pseudo mis à jour', false);
+};
+
+function showProfileSetup() {
+  const overlay=document.getElementById('profile-setup-overlay');
+  if(!overlay)return;
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden','false');
+  document.body.classList.add('profile-setup-active');
+  const input=document.getElementById('profile-pseudo-input');
+  const error=document.getElementById('profile-pseudo-error');
+  const count=document.getElementById('profile-pseudo-count');
+  const icon=document.getElementById('profile-setup-icon');
+  const update=()=>{ const v=sanitizeProfileName(input?.value); if(count)count.textContent=`${v.length}/16`; if(icon)icon.textContent=getProfileInitial(v); if(error)error.textContent=''; };
+  input?.addEventListener('input',update);
+  input?.addEventListener('keydown',(e)=>{if(e.key==='Enter')confirmProfileSetup();});
+  setTimeout(()=>input?.focus(),120);
+}
+
+function closeProfileSetup() {
+  const overlay=document.getElementById('profile-setup-overlay');
+  if(!overlay)return;
+  overlay.classList.add('hidden');
+  overlay.setAttribute('aria-hidden','true');
+  document.body.classList.remove('profile-setup-active');
+}
+
+window.confirmProfileSetup = async function() {
+  const input = document.getElementById('profile-pseudo-input');
+  const error = document.getElementById('profile-pseudo-error');
+  const name = sanitizeProfileName(input?.value);
+
+  if (name.length < 2) {
+    if (error) error.textContent = 'Choisis au moins 2 caractères.';
+    return;
+  }
+
+  // Sauvegarde locale : on la conserve quoi qu'il arrive.
+  saveProfile({ name });
+
+  // Synchronisation avec Supabase.
+  try {
+    const cloudProfile = await syncPlayerProfile(name);
+
+    if (cloudProfile) {
+      console.log('🟢 Profil joueur synchronisé avec Supabase :', cloudProfile);
+    } else {
+      console.warn('🟠 Profil local conservé, mais synchronisation Supabase impossible.');
+    }
+  } catch (error) {
+    console.error('Erreur synchronisation profil :', error);
+  }
+
+  updateMenuDisplays();
+  closeProfileSetup();
+
+  // Premier lancement : le tutoriel reste obligatoire avant le menu.
+  if (!isTutorialCompleted()) {
+    startTutorial();
+  }
+};
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+/* ============================================================
+   SUCCÈS / ACHIEVEMENTS
+   ============================================================ */
+const ACHIEVEMENTS = [
+  {id:'first_wall', icon:'🧱', name:'Première barrière', desc:'Pose ta toute première barrière.', target:1, reward:50, kind:'walls'},
+  {id:'architect', icon:'🏗️', name:'Architecte', desc:'Pose 50 barrières au total.', target:50, reward:150, kind:'walls'},
+  {id:'first_win', icon:'🏆', name:'Première victoire', desc:'Remporte ta première partie.', target:1, reward:100, kind:'wins'},
+  {id:'win_streak', icon:'🔥', name:'En série', desc:'Enchaîne 3 victoires consécutives.', target:3, reward:200, kind:'streak'},
+  {id:'champion_250', icon:'🥇', name:'Petit champion', desc:'Atteins 250 trophées.', target:250, reward:250, kind:'trophies'},
+  {id:'climber_500', icon:'💎', name:'Grimpeur', desc:'Atteins 500 trophées.', target:500, reward:400, kind:'trophies'},
+  {id:'fearless', icon:'⚔️', name:'Sans peur', desc:'Gagne une partie en difficulté Difficile.', target:1, reward:300, kind:'hardwin'},
+  {id:'nightmare', icon:'💀', name:'Cauchemar', desc:'Gagne une partie en difficulté Expert.', target:1, reward:500, kind:'expertwin'},
+  {id:'speed', icon:'⚡', name:'Victoire rapide', desc:'Gagne une partie en 20 déplacements ou moins.', target:1, reward:300, kind:'quickwin'},
+  {id:'master', icon:'👑', name:'Maître', desc:'Atteins 1200 trophées.', target:1200, reward:1000, kind:'trophies'}
+];
+function getAchievementData(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(CONFIG.ACHIEVEMENTS_KEY)||'null');
+    if(raw && typeof raw==='object') return {values:raw.values||{}, unlocked:raw.unlocked||{}, claimed:raw.claimed||{}, stats:raw.stats||{walls:0}};
+  }catch(e){}
+  return {values:{}, unlocked:{}, claimed:{}, stats:{walls:0}};
+}
+function saveAchievementData(d){localStorage.setItem(CONFIG.ACHIEVEMENTS_KEY,JSON.stringify(d));}
+function achievementProgress(a,d){
+  const stats=loadStats();
+  if(a.kind==='walls') return Math.max(0,Number(d.stats.walls)||0);
+  if(a.kind==='wins') return stats.wins;
+  if(a.kind==='streak') return stats.bestStreak;
+  if(a.kind==='trophies') return loadTrophies();
+  return Number(d.values[a.id])||0;
+}
+function unlockAchievement(id){
+  const a=ACHIEVEMENTS.find(x=>x.id===id); if(!a) return false;
+  const d=getAchievementData(); if(d.unlocked[id]) return false;
+  d.unlocked[id]=Date.now(); d.values[id]=a.target; saveAchievementData(d);
+  showAchievementToast(a);
+  return true;
+}
+function checkAchievements(extra={}){
+  const d=getAchievementData(); const stats=loadStats(); const trophies=loadTrophies();
+  d.stats.walls=Math.max(0,Number(d.stats.walls)||0);
+  const checks={
+    first_wall:d.stats.walls>=1,
+    architect:d.stats.walls>=50,
+    first_win:stats.wins>=1,
+    win_streak:stats.bestStreak>=3,
+    champion_250:trophies>=250,
+    climber_500:trophies>=500,
+    fearless:extra.difficulty==='hard' && extra.humanWon===true,
+    nightmare:extra.difficulty==='expert' && extra.humanWon===true,
+    speed:extra.humanWon===true && Number(extra.moves||0)<=20,
+    master:trophies>=1200
+  };
+  saveAchievementData(d);
+  ACHIEVEMENTS.forEach(a=>{if(checks[a.id]) unlockAchievement(a.id);});
+}
+function registerAchievementWall(){
+  const d=getAchievementData(); d.stats.walls=(Number(d.stats.walls)||0)+1; saveAchievementData(d); checkAchievements();
+}
+function showAchievementToast(a){
+  let el=document.getElementById('achievement-toast');
+  if(!el){el=document.createElement('div');el.id='achievement-toast';document.body.appendChild(el);}
+  el.innerHTML=`<div class="achievement-toast-icon">${a.icon}</div><div><div class="achievement-toast-kicker">SUCCÈS DÉBLOQUÉ</div><strong>${escapeHTML(a.name)}</strong><span>+${a.reward} 🪙</span></div>`;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(window._achievementToastTimer); window._achievementToastTimer=setTimeout(()=>el.classList.remove('show'),3600);
+}
+function renderAchievementsPanel(){
+  const body=document.getElementById('menu-panel-body'); if(!body)return;
+  const d=getAchievementData();
+  const unlocked=ACHIEVEMENTS.filter(a=>d.unlocked[a.id]).length;
+  const claimed=ACHIEVEMENTS.filter(a=>d.claimed[a.id]).length;
+  body.innerHTML=`<div class="achievements-panel">
+    <div class="achievements-head"><div><div class="profile-panel-kicker">COLLECTION</div><h2>🏅 Succès</h2><p class="panel-subtitle">Débloque des objectifs spéciaux puis récupère leurs récompenses.</p></div><div class="achievements-count">${unlocked}/${ACHIEVEMENTS.length}</div></div>
+    <div class="achievements-progress"><div><span>Progression</span><b>${unlocked}/${ACHIEVEMENTS.length}</b></div><div class="achievement-progress-track"><span style="width:${Math.round(unlocked/ACHIEVEMENTS.length*100)}%"></span></div><div class="achievement-rewards-summary">${claimed}/${unlocked} récompense${unlocked>1?'s':''} récupérée${claimed>1?'s':''}</div></div>
+    <div class="achievements-grid">${ACHIEVEMENTS.map(a=>{
+      const done=!!d.unlocked[a.id], isClaimed=!!d.claimed[a.id], p=Math.min(a.target,achievementProgress(a,d)); const pct=Math.round(p/a.target*100);
+      let action='';
+      if(done && isClaimed) action='<span class="achievement-claimed">✓ RÉCUPÉRÉ</span>';
+      else if(done) action=`<button type="button" class="achievement-claim-btn" data-achievement-claim="${a.id}">RÉCUPÉRER</button>`;
+      else action=`<span class="achievement-locked">${p}/${a.target}</span>`;
+      return `<article class="achievement-card ${done?'unlocked':''} ${done&&!isClaimed?'ready':''}"><div class="achievement-card-icon">${a.icon}</div><div class="achievement-card-main"><div class="achievement-card-title">${escapeHTML(a.name)} ${done?'<span class="achievement-check">✓</span>':''}</div><div class="achievement-card-desc">${escapeHTML(a.desc)}</div><div class="achievement-card-progress"><span style="width:${pct}%"></span></div><div class="achievement-card-meta"><span>${done?'DÉBLOQUÉ':`${p}/${a.target}`}</span><b>+${a.reward} 🪙</b></div><div class="achievement-card-action">${action}</div></div></article>`;
+    }).join('')}</div>
+  </div>`;
+}
+window.claimAchievement=function(id,btnEl){
+  const a=ACHIEVEMENTS.find(x=>x.id===id); if(!a)return;
+  const d=getAchievementData();
+  if(!d.unlocked[id] || d.claimed[id])return;
+  d.claimed[id]=Date.now();
+  saveAchievementData(d);
+  addCoins(a.reward);
+  updateMenuDisplays();
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='✓ RÉCUPÉRÉ';}
+  renderAchievementsPanel();
+};
+window.openAchievements=()=>openMenuPanel('achievements');
 
 /* ============================================================
    QUÊTES QUOTIDIENNES
@@ -1258,6 +1664,14 @@ function resolveChaosCell(player) {
 
 let state = null;
 let uiLocked = false;
+let tutorialActive = false;
+let tutorialStep = 0;
+let tutorialStepStartedAt = 0;
+let tutorialCoachHidden = false;
+let tutorialTransitionToken = 0;
+let tutorialBusy = false;
+const TUTORIAL_MIN_STEP_MS = 1800;
+const TUTORIAL_KEY = 'quoridor4_tutorial_completed';
 
 function createNewGameState() {
   const count = isChaosMode() ? 4 : getSelectedPlayersCount();
@@ -1270,14 +1684,15 @@ function createNewGameState() {
   const wallsPerPlayer = count === 2 ? 8 : count === 3 ? 6 : count === 4 ? 5 : 4;
   const players = ALL_PLAYER_DEFS.slice(0, count).map(def => {
     const pos = count === 5 ? nearestPlayableCellToPentSide(def.pentSide) : startPositions[def.side];
-    return { ...def, row: pos.row, col: pos.col, wallsLeft: wallsPerPlayer, botTurns: 0, lastWallTargetId: null };
+    const playerName = def.isHuman ? getPlayerName() : def.name;
+    return { ...def, name: playerName, row: pos.row, col: pos.col, wallsLeft: wallsPerPlayer, botTurns: 0, lastWallTargetId: null };
   });
   const gameState = {
     players, currentPlayerIndex: 0, walls: new Set(), jointOrientations: new Map(), wallOwners: new Map(),
     mode: 'move', orientation: 'H', gameOver: false, difficulty: getDifficultyKey(),
     trophies: loadTrophies(), coins: loadCoins(),
     cardHand: drawHand(), cardUsed: new Set(), pendingFreeWall: false, pendingBreakWall: false, extraTurn: false, extraTurnForId: null, cardPlayedThisTurn: false, cardActivationPending: false, visionCells: [],
-    chaos: getGameMode() === CHAOS_MODE, specialCells: new Map()
+    chaos: getGameMode() === CHAOS_MODE, specialCells: new Map(), tutorial: false
   };
   state = gameState;
   if (gameState.chaos) gameState.specialCells = generateChaosSpecialCells(players);
@@ -1438,7 +1853,208 @@ preloadAudio();
    5. TOURS DE JEU & IA BOTS
    ============================================================ */
 
+
+function isTutorialCompleted() {
+  return localStorage.getItem(TUTORIAL_KEY) === '1';
+}
+function setTutorialCompleted() {
+  localStorage.setItem(TUTORIAL_KEY, '1');
+}
+function tutorialMessage() {
+  const messages = [
+    ['🎓 Bienvenue !', `Ton objectif est simple : ${getPlayerName()}, atteins la ligne opposée avant ton adversaire. Les cases vertes montrent où tu peux aller.`, 'Déplace ton pion sur une case verte.'],
+    ['🧱 À toi de jouer', 'Tu peux maintenant poser une barrière. Elle sert à rallonger le chemin de ton adversaire.', 'Passe en mode « Barrière », puis place-en une sur le plateau.'],
+    ['👀 Observe le tour adverse', 'Après ton action, le tour passe automatiquement à l’adversaire. Une partie alterne ainsi entre les joueurs.', 'Attends que le bot joue.'],
+    ['🃏 Découvre les cartes', 'Les cartes donnent des capacités spéciales. Pour commencer, utilise ton Sprint : il te permet d’avancer plus loin.', 'Appuie sur la carte « Sprint » dans ta main.'],
+    ['🏁 À toi de gagner', 'Tu connais maintenant les bases : déplacement, barrières, tours et cartes. Termine la partie en atteignant ton objectif.', 'Joue normalement jusqu’à atteindre le haut du plateau.']
+  ];
+  return messages[tutorialStep] || messages[4];
+}
+function ensureTutorialCoach() {
+  let el = document.getElementById('tutorial-coach');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'tutorial-coach';
+    el.className = 'tutorial-coach hidden';
+    el.innerHTML = `
+      <div class="tutorial-coach-inner">
+        <div class="tutorial-coach-step" id="tutorial-coach-step"></div>
+        <div class="tutorial-coach-title" id="tutorial-coach-title"></div>
+        <div class="tutorial-coach-text" id="tutorial-coach-text"></div>
+        <div class="tutorial-coach-footer">
+          <span class="tutorial-coach-progress" id="tutorial-coach-progress"></span>
+          <div class="tutorial-coach-actions"><button type="button" class="tutorial-hide-btn hidden" id="tutorial-hide-btn">Masquer</button><button type="button" class="tutorial-skip-btn" id="tutorial-skip-btn">Quitter</button></div>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+    document.getElementById('tutorial-skip-btn').addEventListener('click', skipTutorial);
+    document.getElementById('tutorial-hide-btn').addEventListener('click', toggleTutorialCoachVisibility);
+  }
+  return el;
+}
+function updateTutorialCoach() {
+  if (!tutorialActive) return;
+  const el = ensureTutorialCoach();
+  const [title,text,action] = tutorialMessage();
+  document.getElementById('tutorial-coach-step').textContent = `TUTORIEL · ${tutorialStep + 1}/5`;
+  document.getElementById('tutorial-coach-title').textContent = title;
+  document.getElementById('tutorial-coach-text').innerHTML = `${text}<br><strong>${action}</strong>`;
+  const hideBtn = document.getElementById('tutorial-hide-btn');
+  hideBtn.classList.toggle('hidden', tutorialStep !== 4);
+  hideBtn.textContent = tutorialCoachHidden ? 'Afficher' : 'Masquer';
+  if (tutorialStep !== 4) tutorialCoachHidden = false;
+  el.classList.toggle('hidden', tutorialCoachHidden);
+  // Le panneau lui-même laisse toujours passer les clics vers le jeu.
+  el.style.pointerEvents = 'none';
+  const inner = el.querySelector('.tutorial-coach-inner');
+  if (inner) inner.style.pointerEvents = tutorialCoachHidden ? 'none' : 'auto';
+  highlightTutorialTarget();
+}
+function toggleTutorialCoachVisibility() {
+  if (!tutorialActive || tutorialStep !== 4) return;
+  tutorialCoachHidden = !tutorialCoachHidden;
+  const el = ensureTutorialCoach();
+  const hideBtn = document.getElementById('tutorial-hide-btn');
+  hideBtn.classList.remove('hidden');
+  hideBtn.textContent = tutorialCoachHidden ? 'Afficher' : 'Masquer';
+  // Masquer le coach ne doit jamais bloquer la partie : le jeu reste totalement interactif.
+  if (tutorialCoachHidden) {
+    el.classList.add('hidden');
+    el.setAttribute('aria-hidden', 'true');
+    el.style.pointerEvents = 'none';
+    if (state && !state.gameOver) { uiLocked = false; tutorialBusy = false; state.cardActivationPending = false; }
+  } else {
+    el.classList.remove('hidden');
+    el.setAttribute('aria-hidden', 'false');
+    el.style.pointerEvents = 'none';
+    const inner = el.querySelector('.tutorial-coach-inner');
+    if (inner) inner.style.pointerEvents = 'auto';
+    highlightTutorialTarget();
+  }
+}
+function highlightTutorialTarget() {
+  document.querySelectorAll('.tutorial-focus').forEach(el => el.classList.remove('tutorial-focus'));
+  if (!tutorialActive || !state || state.gameOver) return;
+  if (tutorialStep === 0) {
+    document.querySelectorAll('.cell.valid-move').forEach(el => el.classList.add('tutorial-focus'));
+  } else if (tutorialStep === 1) {
+    const btn = document.getElementById('mode-wall-btn'); if (btn) btn.classList.add('tutorial-focus');
+  } else if (tutorialStep === 3) {
+    const btn = document.querySelector('#card-bar .game-card-btn'); if (btn) btn.classList.add('tutorial-focus');
+  }
+}
+function advanceTutorial(step) {
+  if (!tutorialActive) return;
+  if (step < tutorialStep) return;
+  tutorialTransitionToken++;
+  tutorialStep = step;
+  tutorialStepStartedAt = Date.now();
+  tutorialCoachHidden = false;
+  tutorialBusy = false;
+  uiLocked = false;
+
+  // À l'entrée dans la phase finale, on repart sur un état de tour propre.
+  // Ceci coupe définitivement toute trace de l'animation/carte de l'étape 4
+  // et garantit que le joueur humain récupère la main avant de continuer.
+  if (step === 4 && state && state.tutorial) {
+    const humanIndex = state.players.findIndex(p => p.isHuman);
+    if (humanIndex >= 0) state.currentPlayerIndex = humanIndex;
+    state.gameOver = false;
+    state.cardActivationPending = false;
+    state.cardPlayedThisTurn = false;
+    state.pendingFreeWall = false;
+    state.pendingBreakWall = false;
+    document.getElementById('card-activation-overlay')?.remove();
+    document.querySelectorAll('.tutorial-focus').forEach(el => el.classList.remove('tutorial-focus'));
+    setMode('move');
+    refreshHighlights();
+  }
+
+  updateTutorialCoach();
+  refreshHighlights();
+  renderCardBar();
+  setTimeout(highlightTutorialTarget, 30);
+}
+function skipTutorial() {
+  const restoreMode = tutorialPreviousMode;
+  tutorialActive = false;
+  tutorialTransitionToken++;
+  tutorialStep = 0;
+  tutorialCoachHidden = false;
+  tutorialBusy = false;
+  document.getElementById('tutorial-coach')?.remove();
+  uiLocked = false;
+  if (state) state.gameOver = true;
+  setGameMode(restoreMode);
+  showScreen('menu');
+}
+function finishTutorial() {
+  if (!tutorialActive) return;
+  // Garde la dernière étape visible assez longtemps, même si le joueur
+  // atteint l'objectif très rapidement avec Sprint.
+  const elapsed = Date.now() - tutorialStepStartedAt;
+  if (tutorialStep === 4 && elapsed < TUTORIAL_MIN_STEP_MS) {
+    const token = tutorialTransitionToken;
+    setTimeout(() => { if (tutorialActive && tutorialStep === 4 && tutorialTransitionToken === token) finishTutorial(); }, TUTORIAL_MIN_STEP_MS - elapsed);
+    return;
+  }
+  const restoreMode = tutorialPreviousMode;
+  tutorialActive = false;
+  setTutorialCompleted();
+  addCoins(100);
+  document.getElementById('tutorial-coach')?.remove();
+  const modal = document.createElement('div');
+  modal.className = 'tutorial-complete-overlay';
+  modal.innerHTML = `<div class="tutorial-complete-card">
+    <div class="tutorial-complete-icon">🎓</div>
+    <div class="tutorial-complete-kicker">TUTORIEL TERMINÉ</div>
+    <h2>Tu es prêt.</h2>
+    <p>Tu connais maintenant les mécaniques essentielles de Quoridor 4.</p>
+    <div class="tutorial-complete-reward">+100 🪙</div>
+    <button type="button" id="tutorial-complete-btn">JOUER UNE VRAIE PARTIE <span>›</span></button>
+    <button type="button" id="tutorial-complete-menu" class="tutorial-complete-secondary">Retour au menu</button>
+  </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('tutorial-complete-btn').addEventListener('click', () => { modal.remove(); setGameMode(restoreMode); showScreen('menu'); updateMenuDisplays(); startGame(); });
+  document.getElementById('tutorial-complete-menu').addEventListener('click', () => { modal.remove(); setGameMode(restoreMode); showScreen('menu'); updateMenuDisplays(); });
+}
+function startTutorial() {
+  closeMenuPanel();
+  hideEndModal();
+  tutorialPreviousMode = getGameMode();
+  // Le tutoriel est toujours une partie classique : aucune case spéciale,
+  // même si le joueur avait sélectionné le Mode Chaos avant de l'ouvrir.
+  setGameMode('classic');
+  tutorialActive = true;
+  tutorialTransitionToken++;
+  tutorialStep = 0;
+  tutorialStepStartedAt = Date.now();
+  tutorialCoachHidden = false;
+  uiLocked = false;
+  showScreen('game');
+  state = createNewGameState();
+  state.tutorial = true;
+  const defs = ALL_PLAYER_DEFS.slice(0,2);
+  state.players = defs.map((def, idx) => {
+    const pos = idx === 0 ? {row:N-1,col:Math.floor(N/2)} : {row:0,col:Math.floor(N/2)};
+    return { ...def, name: def.isHuman ? getPlayerName() : 'Guide', row:pos.row, col:pos.col, wallsLeft:8, botTurns:0, lastWallTargetId:null };
+  });
+  state.trophies = loadTrophies(); state.coins = loadCoins();
+  state.walls = new Set(); state.jointOrientations = new Map(); state.wallOwners = new Map();
+  state.cardHand = ['sprint','freewall','doublemove']; state.cardUsed = new Set();
+  state.cardPlayedThisTurn=false; state.cardActivationPending=false; state.pendingFreeWall=false; state.pendingBreakWall=false;
+  const frame = document.getElementById('board-frame');
+  if (frame) { frame.classList.remove('mode-5','mode-chaos'); }
+  applyBoardTheme(); buildBoardDOM(); renderChaosSpecialCells();
+  document.getElementById('players-hud').innerHTML=''; renderPawns(); updatePlayersHUD(); updateGoalBarsDisplay(); renderCardBar(); renderEmoteBar();
+  setMode('move'); hideEndModal();
+  ensureTutorialCoach(); updateTutorialCoach();
+  beginTurn();
+}
+
 function startGame() {
+  tutorialActive = false;
+  document.getElementById('tutorial-coach')?.remove();
   uiLocked = false;
   showScreen('game');
   state = createNewGameState();
@@ -1472,8 +2088,11 @@ function beginTurn() {
   renderCardBar();
   if (player.isHuman) playSound('turn');
 
-  if (player.isHuman) { setMode('move'); refreshHighlights(); } 
-  else { clearHighlights(); setTimeout(() => runBotTurn(player), CONFIG.BOT_MOVE_DELAY_MS); }
+  if (player.isHuman) {
+    // In tutorial final phase, never let a stale UI lock survive a turn transition.
+    if (tutorialActive && state.tutorial) { uiLocked = false; tutorialBusy = false; }
+    setMode('move'); refreshHighlights(); highlightTutorialTarget();
+  } else { clearHighlights(); setTimeout(() => runBotTurn(player), CONFIG.BOT_MOVE_DELAY_MS); }
 }
 
 function endTurn() {
@@ -1501,6 +2120,50 @@ function checkWinAfterMove(player) {
 
 function runBotTurn(player) {
   if (state.gameOver) return;
+  if (tutorialActive && state.tutorial) {
+    player.botTurns = (player.botTurns || 0) + 1;
+    const safeMoves = getValidMoveCells(player).filter(([r,c]) => !isGoalCell(player.side,r,c));
+    if (safeMoves.length) {
+      const [r,c] = safeMoves[Math.floor(Math.random()*safeMoves.length)];
+      movePawn(player,r,c);
+      renderPawns();
+    }
+
+    // Étape 3 : un seul tour adverse est montré, puis la main revient au joueur.
+    if (tutorialStep === 2) {
+      setTimeout(() => {
+        if (state.gameOver || !tutorialActive || tutorialStep !== 2) return;
+        advanceTutorial(3);
+        if (!state.gameOver && tutorialActive) {
+          state.currentPlayerIndex = state.players.findIndex(p => p.isHuman);
+          if (state.currentPlayerIndex < 0) state.currentPlayerIndex = 0;
+          beginTurn();
+          setMode('move');
+        }
+      }, 850);
+      return;
+    }
+
+    // À partir de l'étape 5, le tutoriel devient une vraie partie classique :
+    // après chaque coup du bot, il rend la main au joueur.
+    if (tutorialStep >= 4) {
+      setTimeout(() => {
+        if (state.gameOver || !tutorialActive || !state.tutorial) return;
+        // Le bot vient de terminer son action : retour explicite au joueur.
+        tutorialBusy = false;
+        uiLocked = false;
+        state.cardActivationPending = false;
+        state.cardPlayedThisTurn = false;
+        const humanIndex = state.players.findIndex(p => p.isHuman);
+        if (humanIndex < 0) return;
+        state.currentPlayerIndex = humanIndex;
+        beginTurn();
+      }, 700);
+      return;
+    }
+
+    return;
+  }
   const difficulty = getDifficultyInfo();
   let actionDone = false;
   player.botTurns = (player.botTurns || 0) + 1;
@@ -2105,12 +2768,21 @@ window.selectClassicMode = function() { setGameMode('classic'); openMenuPanel('m
 function updateMenuDisplays() {
   const trophiesCount = loadTrophies();
   const coinsCount = loadCoins();
+  const profileName = getPlayerName();
   
+  const profileNameEl = document.getElementById('menu-profile-name');
+  const avatarEl = document.getElementById('menu-avatar');
   const trophyEl = document.getElementById('menu-trophy-count');
   const coinEl = document.getElementById('menu-coin-count');
   const rankEl = document.getElementById('menu-profile-rank');
   const difficultyEl = document.getElementById('menu-profile-difficulty');
+  const xpInfo = getXPLevelInfo();
+  const menuLevelEl = document.getElementById('menu-profile-level');
+  const menuXpBar = document.getElementById('menu-profile-xp-fill');
+  const menuXpText = document.getElementById('menu-profile-xp-text');
   
+  if (profileNameEl) profileNameEl.textContent = profileName;
+  if (avatarEl) avatarEl.textContent = getProfileInitial(profileName);
   if (trophyEl) trophyEl.textContent = trophiesCount;
   if (coinEl) coinEl.textContent = coinsCount;
   
@@ -2122,6 +2794,9 @@ function updateMenuDisplays() {
     const d = getDifficultyInfo(getDifficultyKey());
     difficultyEl.textContent = `${d.icon} ${d.name}`;
   }
+  if (menuLevelEl) menuLevelEl.textContent = `Niv. ${xpInfo.level}`;
+  if (menuXpBar) menuXpBar.style.width = `${xpInfo.pct}%`;
+  if (menuXpText) menuXpText.textContent = `${xpInfo.inLevel}/${xpInfo.needed} XP`;
 }
 
 function showScreen(screen) {
@@ -2138,9 +2813,11 @@ function showScreen(screen) {
 function openMenuPanel(type) {
   const panel = document.getElementById('menu-panel');
   const body = document.getElementById('menu-panel-body');
-  if (panel) panel.classList.toggle('fullscreen-panel', type === 'shop' || type === 'cards');
+  if (panel) panel.classList.toggle('fullscreen-panel', ['shop','cards','levels','trophies','achievements'].includes(type));
   
   if (type === 'quests') { renderDailyQuestsPanel(); panel.classList.remove('hidden'); return; }
+  if (type === 'achievements') { renderAchievementsPanel(); panel.classList.remove('hidden'); return; }
+  if (type === 'profile') { renderProfilePanel(); panel.classList.remove('hidden'); return; }
   if (type === 'modes') {
     const current = getSelectedPlayersCount();
     body.innerHTML = `
@@ -2245,6 +2922,8 @@ function openMenuPanel(type) {
 
     body.innerHTML = headerHTML + progressHTML + listHTML;
     
+  } else if (type === 'levels') {
+    renderLevelRewardsPanel();
   } else if (type === 'cards') {
     body.innerHTML = buildCardCollectionHTML();
   } else if (type === 'stats') {
@@ -2263,11 +2942,12 @@ function openMenuPanel(type) {
     `;
   } else if (type === 'tutorial') {
     body.innerHTML = `
-      <h2>❓ Comment jouer</h2>
-      <div class="tutorial-step"><span class="tutorial-step-number">1</span><p>Tu pars en bas du plateau. Ton objectif est la zone verte en haut.</p></div>
-      <div class="tutorial-step"><span class="tutorial-step-number">2</span><p>À ton tour, déplace ton pion d'une case ou pose une <strong>Barrière</strong>.</p></div>
-      <div class="tutorial-step"><span class="tutorial-step-number">3</span><p>Les barrières rallongent le chemin des adversaires, mais ne peuvent pas bloquer complètement leur route.</p></div>
-      <div class="tutorial-step"><span class="tutorial-step-number">4</span><p>Le premier joueur à atteindre son côté opposé gagne la partie.</p></div>
+      <div class="tutorial-panel-hero"><span class="tutorial-panel-icon">🎓</span><div><div class="profile-panel-kicker">APPRENDRE EN JOUANT</div><h2>Première partie</h2></div></div>
+      <p class="panel-subtitle">Un tutoriel interactif va te guider directement sur le plateau. Tu feras toi-même chaque action importante.</p>
+      <div class="tutorial-step"><span class="tutorial-step-number">1</span><p><strong>Déplacement</strong><br>Apprends à bouger ton pion et à lire les cases disponibles.</p></div>
+      <div class="tutorial-step"><span class="tutorial-step-number">2</span><p><strong>Barrières</strong><br>Découvre comment ralentir l'adversaire sans lui fermer complètement son chemin.</p></div>
+      <div class="tutorial-step"><span class="tutorial-step-number">3</span><p><strong>Cartes</strong><br>Teste gratuitement une carte Sprint pendant le tutoriel.</p></div>
+      <button type="button" class="tutorial-launch-btn" onclick="startTutorial()">🎮 COMMENCER LE TUTORIEL <span>›</span></button>
     `;
   } else if (type === 'shop') {
     body.innerHTML = buildShopHTML();
@@ -2579,7 +3259,7 @@ function setOrientation(orientation) {
   document.getElementById('orientation-v-btn').classList.toggle('active', orientation === 'V');
 }
 
-function showEndModal(humanWon, deltaTrophies, deltaCoins) {
+function showEndModal(humanWon, deltaTrophies, deltaCoins, xpGain = null) {
   const modal = document.getElementById('end-modal');
   document.getElementById('end-title').textContent = humanWon ? 'Victoire ! 🎉' : 'Défaite';
   document.getElementById('end-text').textContent = humanWon ? 'Tu as atteint le bord opposé avant tout le monde.' : 'Un adversaire a atteint son objectif avant toi.';
@@ -2587,6 +3267,13 @@ function showEndModal(humanWon, deltaTrophies, deltaCoins) {
   const trophySign = deltaTrophies >= 0 ? '+' : '';
   document.getElementById('trophy-change').textContent = `${trophySign}${deltaTrophies} 🏆`;
   document.getElementById('coin-change').textContent = `+${deltaCoins} 🪙`;
+  const xpEl = document.getElementById('xp-change');
+  if (xpEl) {
+    const gained = xpGain?.amount ?? 0;
+    const levelText = xpGain?.leveledUp ? ` • ⭐ Niveau ${xpGain.after.level} !` : '';
+    xpEl.textContent = `+${gained} XP${levelText}`;
+    xpEl.classList.toggle('xp-level-up', !!xpGain?.leveledUp);
+  }
   
   modal.classList.remove('hidden');
   modal.classList.remove('victory-modal','defeat-modal');
@@ -2612,6 +3299,7 @@ function hideRankUpNotification() { document.getElementById('rank-up-modal').cla
 
 function markCardUsed(id) {
   if (!state || state.cardUsed.has(id) || state.cardPlayedThisTurn) return false;
+  if (!consumeCard(id)) return false;
   state.cardUsed.add(id);
   state.cardPlayedThisTurn = true;
   return true;
@@ -2768,7 +3456,10 @@ function runCardActivationAnimation(card, player, callback) {
 
 function useCard(id) {
   if(!cardAvailable(id)) return;
+  if (tutorialActive && tutorialBusy) return;
+  if (tutorialActive && tutorialStep === 3 && id !== 'sprint') { showMessage('🎓 Commence par utiliser Sprint.'); return; }
   state.cardActivationPending = true;
+  tutorialBusy = tutorialActive ? true : false;
   const c=cardById(id);
   const player=currentPlayer();
   if(!c || !player) return;
@@ -2776,9 +3467,12 @@ function useCard(id) {
   uiLocked = true;
   playSound('card');
   emitCosmeticEffect('card', player);
+  const token = tutorialTransitionToken;
   runCardActivationAnimation(c, player, () => {
     uiLocked = false;
+    tutorialBusy = false;
     resolveCardUse(id);
+    if (tutorialActive && tutorialStep === 3 && tutorialTransitionToken === token) advanceTutorial(4);
   });
 }
 
@@ -2787,37 +3481,55 @@ window.toggleAudio=toggleAudio;
 window.setAudioVolume=setAudioVolume;
 window.testAudio=testAudio;
 window.playSound=playSound;
+window.startTutorial=startTutorial;
 
 function onCellClick(r, c) {
-  if (state.gameOver || state.mode !== 'move' || uiLocked) return;
+  if (state.gameOver || state.mode !== 'move') return;
+  if (tutorialActive && tutorialStep === 1) { showMessage('Passe d’abord en mode 🧱 Barrière.'); return; }
   const player = currentPlayer(); if (!player.isHuman) return;
+  const inputLocked = tutorialActive ? tutorialBusy : uiLocked;
+  if (inputLocked) return;
   if (!getValidMoveCells(player).some(([vr, vc]) => vr === r && vc === c)) return;
 
-  uiLocked = true; movePawn(player, r, c); player.movesThisGame=(player.movesThisGame||0)+1; updateDailyQuest('move');
+  uiLocked = true; tutorialBusy = tutorialActive ? true : false; movePawn(player, r, c); player.movesThisGame=(player.movesThisGame||0)+1; updateDailyQuest('move');
   if (player.chaosBonusSteps) player.chaosBonusSteps = 0;
   if (player.wallPassMoves) player.wallPassMoves = 0;
   renderPawns();
   emitCosmeticEffect('move', player);
-  setTimeout(() => { uiLocked = false; if (checkWinAfterMove(player)) return; resolveChaosCell(player); if (checkWinAfterMove(player)) return; endTurn(); }, 420);
+  setTimeout(() => { uiLocked = false; tutorialBusy = false; if (checkWinAfterMove(player)) return; resolveChaosCell(player); if (checkWinAfterMove(player)) return; if (tutorialActive && tutorialStep === 0) { advanceTutorial(1); setMode('wall'); return; } endTurn(); }, 420);
 }
 
 function onJointClick(i, j) {
-  if (state.gameOver || state.mode !== 'wall' || uiLocked) return;
+  if (state.gameOver || state.mode !== 'wall') return;
   const player = currentPlayer(); if (!player.isHuman) return;
+  if (tutorialActive ? tutorialBusy : uiLocked) return;
 
   const freeWall = !!state.pendingFreeWall;
   const result = canPlaceWall(player, i, j, state.orientation, freeWall);
   if (!result.ok) { showMessage(result.reason); return; }
 
-  uiLocked = true;
+  uiLocked = true; tutorialBusy = tutorialActive ? true : false;
   if (freeWall) { state.pendingFreeWall = false; markCardUsed('freewall'); }
-  placeWall(player, i, j, state.orientation, freeWall); player.wallsPlacedThisGame=(player.wallsPlacedThisGame||0)+1; updateDailyQuest('wall'); updateDailyQuest('combo');
+  placeWall(player, i, j, state.orientation, freeWall); player.wallsPlacedThisGame=(player.wallsPlacedThisGame||0)+1; registerAchievementWall(); updateDailyQuest('wall'); updateDailyQuest('combo');
   renderCardBar();
-  setTimeout(() => { uiLocked = false; endTurn(); }, 250);
+  setTimeout(() => { uiLocked = false; tutorialBusy = false; if (tutorialActive && tutorialStep === 1) { advanceTutorial(2); endTurn(); return; } endTurn(); }, 250);
 }
 
 function endGame(humanWon, winnerName) {
   if (state.gameOver) return; // Sécurité pour empêcher plusieurs exécutions
+  if (tutorialActive && state?.tutorial) {
+    // Le tutoriel est guidé : seul le joueur peut conclure la partie.
+    // Un éventuel passage d'un adversaire sur sa ligne d'arrivée est ignoré
+    // afin de laisser la phase finale jouable normalement.
+    if (!humanWon) {
+      state.gameOver = false;
+      return;
+    }
+    state.gameOver = true;
+    playSound('win');
+    finishTutorial();
+    return;
+  }
   state.gameOver = true;
   playSound(humanWon ? 'win' : 'lose');
   if (humanWon) emitCosmeticEffect('move', state.players.find(p=>p.isHuman));
@@ -2831,11 +3543,16 @@ function endGame(humanWon, winnerName) {
   const difficulty = getDifficultyInfo();
   const deltaTrophies = humanWon ? difficulty.trophiesWin : -difficulty.trophiesLoss;
   const deltaCoins = humanWon ? difficulty.coinsWin : difficulty.coinsLoss;
+  const baseXP = humanWon ? 150 : 80;
+  const difficultyXP = { easy: 0, normal: 15, hard: 30, expert: 50 };
+  const deltaXP = baseXP + (difficultyXP[getDifficultyKey()] || 0);
   
   addTrophies(deltaTrophies);
-  addCoins(deltaCoins); 
+  addCoins(deltaCoins);
+  const xpGain = addXP(deltaXP);
+  checkAchievements({humanWon, difficulty:getDifficultyKey(), moves:state.players.find(p=>p.isHuman)?.movesThisGame||0});
   
-  showEndModal(humanWon, deltaTrophies, deltaCoins);
+  showEndModal(humanWon, deltaTrophies, deltaCoins, xpGain);
   clearHighlights();
 }
 
@@ -2848,16 +3565,32 @@ function setupEventListeners() {
   document.getElementById('menu-cards-btn').addEventListener('click', () => openMenuPanel('cards'));
   document.getElementById('menu-game-modes-btn').addEventListener('click', () => openMenuPanel('modes'));
   document.getElementById('menu-trophies-btn').addEventListener('click', () => openMenuPanel('trophies'));
-  document.getElementById('menu-profile-btn').addEventListener('click', () => openMenuPanel('trophies'));
+  document.getElementById('menu-profile-btn').addEventListener('click', () => openMenuPanel('profile'));
+  document.getElementById('profile-pseudo-confirm').addEventListener('click', confirmProfileSetup);
   
   document.getElementById('menu-stats-btn').addEventListener('click', () => openMenuPanel('stats'));
   document.getElementById('menu-tutorial-btn').addEventListener('click', () => openMenuPanel('tutorial'));
+  document.getElementById('menu-level-rewards-btn').addEventListener('click', () => openMenuPanel('levels'));
+  document.getElementById('menu-achievements-btn').addEventListener('click', () => openMenuPanel('achievements'));
   document.getElementById('menu-settings-btn').addEventListener('click', () => openMenuPanel('settings'));
+  const moreBtn = document.getElementById('menu-more-btn');
+  const moreDrawer = document.getElementById('menu-more-drawer');
+  const moreClose = document.getElementById('menu-more-close');
+  function toggleMoreMenu(open) { if (!moreDrawer || !moreBtn) return; const next = open === undefined ? moreDrawer.classList.contains('hidden') : open; moreDrawer.classList.toggle('hidden', !next); moreDrawer.setAttribute('aria-hidden', String(!next)); moreBtn.setAttribute('aria-expanded', String(next)); }
+  if (moreBtn) moreBtn.addEventListener('click', () => toggleMoreMenu());
+  if (moreClose) moreClose.addEventListener('click', () => toggleMoreMenu(false));
   document.getElementById('menu-panel-close').addEventListener('click', closeMenuPanel);
   document.getElementById('main-menu-btn').addEventListener('click', () => { hideEndModal(); showScreen('menu'); });
 
   document.getElementById('menu-panel').addEventListener('click', (event) => {
     if (event.target.id === 'menu-panel') { closeMenuPanel(); return; }
+    const achievementBtn = event.target.closest && event.target.closest('[data-achievement-claim]');
+    if (achievementBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      window.claimAchievement(achievementBtn.getAttribute('data-achievement-claim'), achievementBtn);
+      return;
+    }
     const bonusBtn = event.target.closest && event.target.closest('#daily-bonus-claim-btn');
     if (bonusBtn) {
       event.preventDefault();
@@ -2923,5 +3656,38 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.remove('loading-active');
     loading.classList.add('is-hidden');
     setTimeout(()=>loading.remove(),560);
+
+    // Premier lancement : pseudo puis tutoriel obligatoire, sans passer par le menu.
+    if (!loadProfile().name) {
+      showProfileSetup();
+    } else if (!isTutorialCompleted()) {
+      startTutorial();
+    }
   },4380);
 });
+
+(async () => {
+  try {
+    const savedProfile = JSON.parse(
+      localStorage.getItem(CONFIG.PROFILE_KEY) || '{}'
+    );
+
+    const username = savedProfile.name;
+
+    if (!username) {
+      console.log('Aucun pseudo sauvegardé.');
+      return;
+    }
+
+    const cloudProfile = await syncPlayerProfile(username);
+
+    if (cloudProfile) {
+      console.log('🟢 Profil synchronisé :', cloudProfile);
+    } else {
+      console.log('🟠 Profil local conservé.');
+    }
+
+  } catch (error) {
+    console.error('Erreur synchronisation au démarrage :', error);
+  }
+})();
