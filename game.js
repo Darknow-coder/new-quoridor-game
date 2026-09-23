@@ -1426,18 +1426,13 @@ function pentMetrics() {
 }
 
 function classicMetrics() {
-  // Le plateau classique faisait 440px CSS en permanence (9x40 + 8x10).
-  // Sur téléphone, la largeur CSS du viewport est souvent ~360px, même si
-  // la capture physique fait ~700px. Le plateau dépassait donc de l'écran.
-  // On calcule maintenant la taille réelle disponible en tenant compte des
-  // barres latérales du #board-frame.
-  const frameSideSpace = 48; // 18px + 18px + 2 gaps de 6px
-  const horizontalPadding = 24;
-  const maxBoard = N * CONFIG.CELL_SIZE + (N - 1) * CONFIG.WALL_GAP;
-  const available = Math.max(240, window.innerWidth - frameSideSpace - horizontalPadding);
-  const target = Math.min(maxBoard, available);
-  const gap = Math.max(5, Math.min(CONFIG.WALL_GAP, target * 0.0227));
-  const cell = (target - (N - 1) * gap) / N;
+  // Le mode classique doit lui aussi être réellement responsive.
+  // On réserve une petite marge latérale pour le conteneur mobile et les
+  // paddings du plateau, afin que les 9 cases restent toujours entièrement
+  // visibles.
+  const available = Math.max(240, Math.min(window.innerWidth - 76, 440));
+  const gap = Math.max(4, Math.min(CONFIG.WALL_GAP, available * 0.022));
+  const cell = (available - 8 * gap) / 9;
   return { cell, gap, step: cell + gap };
 }
 
@@ -2749,7 +2744,7 @@ function emitCosmeticEffect(type, player){
   const board = boardEl();
   if (!board) return;
   const boardRect = board.getBoundingClientRect();
-  const fxCellSize = (isPentagonMode() ? pentMetrics() : classicMetrics()).cell;
+  const fxCellSize = isPentagonMode() ? pentMetrics().cell : classicMetrics().cell;
   const fxPawnSize = fxCellSize * 0.72;
   const fxMargin = (fxCellSize - fxPawnSize) / 2;
   const { x: fxCellX, y: fxCellY } = cellPixelPos(player.row, player.col);
@@ -3124,10 +3119,7 @@ function buildBoardDOM() {
       const cell = document.createElement('div');
       cell.className = 'cell' + ((r + c) % 2 === 1 ? ' cell-alt' : '') + (!isPlayableCell(r, c) ? ' cell-outside' : '');
       cell.style.left = x + 'px'; cell.style.top = y + 'px';
-      // En mode pentagone, la taille des cases doit suivre exactement
-      // pentMetrics().cell. Utiliser CONFIG.CELL_SIZE ici faisait dépasser
-      // les cases du plateau et cassait le redimensionnement mobile.
-      const cellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
+      const cellSize = isPentagonMode() ? pentMetrics().cell : classicMetrics().cell;
       cell.style.width = cellSize + 'px'; cell.style.height = cellSize + 'px';
       cell.dataset.row = r; cell.dataset.col = c;
       if (isPlayableCell(r, c)) cell.addEventListener('click', () => onCellClick(r, c));
@@ -3204,7 +3196,7 @@ function renderPawns() {
     let pawnEl = document.getElementById('pawn-' + player.id);
     if (!pawnEl) {
       pawnEl = document.createElement('div'); pawnEl.id = 'pawn-' + player.id; pawnEl.className = 'pawn';
-      const pawnCellSize = (isPentagonMode() ? pentMetrics() : classicMetrics()).cell;
+      const pawnCellSize = isPentagonMode() ? pentMetrics().cell : classicMetrics().cell;
       const pawnSize = pawnCellSize * 0.72;
       pawnEl.style.width = pawnSize + 'px'; pawnEl.style.height = pawnSize + 'px';
       boardEl().appendChild(pawnEl);
@@ -3232,7 +3224,7 @@ function renderPawns() {
     }
 
     const { x, y } = cellPixelPos(player.row, player.col);
-    const pawnCellSize = (isPentagonMode() ? pentMetrics() : classicMetrics()).cell;
+    const pawnCellSize = isPentagonMode() ? pentMetrics().cell : classicMetrics().cell;
     const margin = (pawnCellSize - pawnCellSize * 0.72) / 2;
     const nextLeft = x + margin;
     const nextTop = y + margin;
