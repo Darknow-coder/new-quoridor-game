@@ -3761,7 +3761,43 @@ function setupEventListeners() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialisation directe : pas d'écran de chargement bloquant.
+  // Écran de chargement visuel : il reste quelques secondes puis se retire
+  // automatiquement. Il ne bloque jamais l'initialisation du jeu.
+  const loading = document.getElementById('loading-screen');
+  const loadingFill = document.getElementById('loading-progress-fill');
+  const loadingText = document.getElementById('loading-progress-text');
+  const loadingSubtitle = document.getElementById('loading-subtitle');
+  const loadingStartedAt = Date.now();
+  const loadingDuration = 3200;
+
+  const finishLoading = () => {
+    if (!loading) return;
+    loading.setAttribute('aria-busy', 'false');
+    loading.classList.add('is-hidden');
+    document.body.classList.remove('loading-active');
+    setTimeout(() => loading.remove(), 600);
+  };
+
+  if (loading) {
+    const steps = [
+      [8, 'Préparation de la partie...'],
+      [28, 'Initialisation du jeu...'],
+      [52, 'Chargement du plateau...'],
+      [76, 'Préparation des modes de jeu...'],
+      [94, 'Presque prêt...'],
+      [100, 'Bienvenue dans Quoridor 4 !']
+    ];
+    steps.forEach(([pct, label], i) => {
+      setTimeout(() => {
+        if (!loading.isConnected) return;
+        if (loadingFill) loadingFill.style.width = pct + '%';
+        if (loadingText) loadingText.textContent = pct + '%';
+        if (loadingSubtitle) loadingSubtitle.textContent = label;
+      }, Math.round((loadingDuration * pct) / 100));
+    });
+    setTimeout(finishLoading, loadingDuration + 180);
+  }
+
   setupEventListeners();
   ensureStarterCards();
   updateMenuDisplays();

@@ -8,7 +8,40 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="loading-active">
+
+  <!-- ==================== ÉCRAN DE CHARGEMENT ==================== -->
+  <div id="loading-screen" class="loading-screen" aria-busy="true">
+    <div class="loading-orbit loading-orbit-a"></div>
+    <div class="loading-orbit loading-orbit-b"></div>
+    <div class="loading-beam loading-beam-a"></div>
+    <div class="loading-beam loading-beam-b"></div>
+    <div class="loading-noise"></div>
+    <div class="loading-content">
+      <div class="loading-logo-shell" aria-hidden="true">
+        <div class="loading-logo-glow"></div>
+        <div class="loading-logo-ring loading-ring-one"></div>
+        <div class="loading-logo-ring loading-ring-two"></div>
+        <div class="loading-board-mark">
+          <span></span><b></b><span></span>
+          <span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+        </div>
+        <div class="loading-pawn-mark"></div>
+      </div>
+      <div class="loading-brand">
+        <div class="loading-kicker">STRATÉGIE • DUEL • TACTIQUE</div>
+        <div class="loading-title">QUORIDOR 4</div>
+        <div class="loading-subtitle" id="loading-subtitle">Préparation de la partie...</div>
+      </div>
+      <div class="loading-progress-wrap">
+        <div class="loading-progress-track"><div class="loading-progress-fill" id="loading-progress-fill"></div><div class="loading-progress-glint"></div></div>
+        <div class="loading-progress-meta"><span>Initialisation</span><strong id="loading-progress-text">0%</strong></div>
+      </div>
+      <div class="loading-tip"><span class="loading-tip-dot"></span><span>Chaque barrière peut complètement changer le chemin.</span></div>
+    </div>
+    <div class="loading-footer"><span>QUORIDOR 4</span><span>SOLO • 2 À 5 JOUEURS</span></div>
+  </div>
 
   <!-- ==================== CRÉATION DU PROFIL ==================== -->
   <div id="profile-setup-overlay" class="profile-setup-overlay hidden" aria-hidden="true">
