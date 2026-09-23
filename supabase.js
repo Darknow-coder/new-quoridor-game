@@ -1142,15 +1142,24 @@ window.supabaseReady = (async () => {
 
 })();
 /* ============================================================
-   👥 SYSTÈME D'AMIS — INTERFACE
+   👥 SYSTÈME D'AMIS — VERSION COMPLÈTE
+   ============================================================ */
+
+
+/* ============================================================
+   BOUTON AMIS
    ============================================================ */
 
 function createFriendsButton() {
+
     if (document.getElementById("friends-menu-btn")) return;
 
-    const nav = document.querySelector(".menu-bottom-nav");
+    const nav =
+        document.querySelector(".menu-bottom-nav");
 
-    const button = document.createElement("button");
+    const button =
+        document.createElement("button");
+
     button.id = "friends-menu-btn";
     button.type = "button";
     button.className = "friends-nav-btn";
@@ -1160,30 +1169,56 @@ function createFriendsButton() {
         <small>Amis</small>
     `;
 
-    button.addEventListener("click", openFriendsPanel);
+    button.addEventListener(
+        "click",
+        openFriendsPanel
+    );
+
 
     if (nav) {
-        const moreBtn = document.getElementById("menu-more-btn");
+
+        const moreBtn =
+            document.getElementById("menu-more-btn");
 
         if (moreBtn) {
-            nav.insertBefore(button, moreBtn);
+
+            nav.insertBefore(
+                button,
+                moreBtn
+            );
+
         } else {
+
             nav.appendChild(button);
+
         }
+
     } else {
-        const grid = document.querySelector("#main-menu .menu-grid");
+
+        const grid =
+            document.querySelector(
+                "#main-menu .menu-grid"
+            );
 
         if (grid) {
-            button.className = "menu-card-btn";
+
+            button.className =
+                "menu-card-btn";
 
             button.innerHTML = `
                 <span class="menu-card-icon">👥</span>
                 <span>Amis</span>
             `;
 
-            grid.insertBefore(button, grid.firstChild);
+            grid.insertBefore(
+                button,
+                grid.firstChild
+            );
+
         }
+
     }
+
 }
 
 
@@ -1193,15 +1228,30 @@ function createFriendsButton() {
 
 function createFriendsOverlay() {
 
-    if (document.getElementById("friends-overlay")) return;
+    if (
+        document.getElementById(
+            "friends-overlay"
+        )
+    ) return;
 
-    const overlay = document.createElement("div");
 
-    overlay.id = "friends-overlay";
-    overlay.className = "friends-hidden";
-    overlay.setAttribute("aria-hidden", "true");
+    const overlay =
+        document.createElement("div");
+
+    overlay.id =
+        "friends-overlay";
+
+    overlay.className =
+        "friends-hidden";
+
+    overlay.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
 
     overlay.innerHTML = `
+
         <div class="friends-screen">
 
             <div class="friends-header">
@@ -1213,6 +1263,7 @@ function createFriendsOverlay() {
                 >
                     ×
                 </button>
+
 
                 <div class="friends-title-wrap">
 
@@ -1243,13 +1294,16 @@ function createFriendsOverlay() {
                     👥 Mes amis
                 </button>
 
+
                 <button
                     type="button"
                     class="friends-tab"
                     id="friends-tab-requests"
                 >
                     🔔 Demandes
-                    <span id="friends-request-count">0</span>
+                    <span id="friends-request-count">
+                        0
+                    </span>
                 </button>
 
             </div>
@@ -1266,6 +1320,7 @@ function createFriendsOverlay() {
                         ➕ Ajouter un ami
                     </div>
 
+
                     <div class="friends-add-row">
 
                         <input
@@ -1276,6 +1331,7 @@ function createFriendsOverlay() {
                             autocomplete="off"
                         >
 
+
                         <button
                             type="button"
                             id="friends-add-btn"
@@ -1284,6 +1340,7 @@ function createFriendsOverlay() {
                         </button>
 
                     </div>
+
 
                     <p
                         id="friends-add-message"
@@ -1319,88 +1376,179 @@ function createFriendsOverlay() {
             </div>
 
         </div>
+
     `;
 
-    document.body.appendChild(overlay);
+
+    document.body.appendChild(
+        overlay
+    );
 
 
     document
-        .getElementById("friends-close-btn")
-        .addEventListener("click", closeFriendsPanel);
+        .getElementById(
+            "friends-close-btn"
+        )
+        .addEventListener(
+            "click",
+            closeFriendsPanel
+        );
+
 
     document
-        .getElementById("friends-add-btn")
-        .addEventListener("click", sendFriendRequestUI);
+        .getElementById(
+            "friends-add-btn"
+        )
+        .addEventListener(
+            "click",
+            sendFriendRequestUI
+        );
+
 
     document
-        .getElementById("friends-tab-list")
-        .addEventListener("click", () => switchFriendsTab("friends"));
+        .getElementById(
+            "friends-tab-list"
+        )
+        .addEventListener(
+            "click",
+            () => switchFriendsTab("friends")
+        );
+
 
     document
-        .getElementById("friends-tab-requests")
-        .addEventListener("click", () => switchFriendsTab("requests"));
+        .getElementById(
+            "friends-tab-requests"
+        )
+        .addEventListener(
+            "click",
+            () => switchFriendsTab("requests")
+        );
+
 
     document
-        .getElementById("friends-username-input")
-        .addEventListener("keydown", (event) => {
+        .getElementById(
+            "friends-username-input"
+        )
+        .addEventListener(
+            "keydown",
+            (event) => {
 
-            if (event.key === "Enter") {
-                sendFriendRequestUI();
+                if (event.key === "Enter") {
+
+                    sendFriendRequestUI();
+
+                }
+
             }
+        );
 
-        });
 }
 
 
 /* ============================================================
-   OUVERTURE / FERMETURE
+   OUVRIR / FERMER
    ============================================================ */
 
 function openFriendsPanel() {
 
     createFriendsOverlay();
 
-    const overlay = document.getElementById("friends-overlay");
 
-    overlay.classList.remove("friends-hidden");
-    overlay.setAttribute("aria-hidden", "false");
+    const overlay =
+        document.getElementById(
+            "friends-overlay"
+        );
 
-    document.body.classList.add("friends-open");
 
-    switchFriendsTab("friends");
+    if (!overlay) return;
+
+
+    overlay.classList.remove(
+        "friends-hidden"
+    );
+
+
+    overlay.setAttribute(
+        "aria-hidden",
+        "false"
+    );
+
+
+    document.body.classList.add(
+        "friends-open"
+    );
+
+
+    switchFriendsTab(
+        "friends"
+    );
+
 }
 
 
 function closeFriendsPanel() {
 
-    const overlay = document.getElementById("friends-overlay");
+    const overlay =
+        document.getElementById(
+            "friends-overlay"
+        );
+
 
     if (!overlay) return;
 
-    overlay.classList.add("friends-hidden");
-    overlay.setAttribute("aria-hidden", "true");
 
-    document.body.classList.remove("friends-open");
+    overlay.classList.add(
+        "friends-hidden"
+    );
+
+
+    overlay.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
+
+    document.body.classList.remove(
+        "friends-open"
+    );
+
 }
 
 
 /* ============================================================
-   ONGLETS
+   ONGLETS AMIS / DEMANDES
    ============================================================ */
 
 function switchFriendsTab(tab) {
 
-    const friendsTab = document.getElementById("friends-tab-list");
-    const requestsTab = document.getElementById("friends-tab-requests");
-    const content = document.getElementById("friends-list");
+    const friendsTab =
+        document.getElementById(
+            "friends-tab-list"
+        );
 
-    if (!friendsTab || !requestsTab || !content) return;
+    const requestsTab =
+        document.getElementById(
+            "friends-tab-requests"
+        );
+
+    const content =
+        document.getElementById(
+            "friends-list"
+        );
+
+
+    if (
+        !friendsTab ||
+        !requestsTab ||
+        !content
+    ) return;
 
 
     friendsTab.classList.toggle(
         "active",
         tab === "friends"
     );
+
 
     requestsTab.classList.toggle(
         "active",
@@ -1410,112 +1558,622 @@ function switchFriendsTab(tab) {
 
     if (tab === "friends") {
 
-        content.innerHTML = `
-            <div class="friends-empty">
-
-                <div class="friends-empty-icon">
-                    👥
-                </div>
-
-                <h2>
-                    Aucun ami pour le moment
-                </h2>
-
-                <p>
-                    Ajoute ton premier ami avec son pseudo.
-                </p>
-
-            </div>
-        `;
+        loadFriendsList();
 
     } else {
 
-        content.innerHTML = `
-            <div class="friends-empty">
+        loadFriendRequests();
 
-                <div class="friends-empty-icon">
-                    🔔
-                </div>
-
-                <h2>
-                    Aucune demande
-                </h2>
-
-                <p>
-                    Les demandes d'amis reçues apparaîtront ici.
-                </p>
-
-            </div>
-        `;
     }
+
 }
 
 
 /* ============================================================
-   AJOUT — INTERFACE TEMPORAIRE
+   LISTE DES AMIS
+   ============================================================ */
+
+async function loadFriendsList() {
+
+    const list =
+        document.getElementById("friends-list");
+
+    if (!list) return;
+
+    list.innerHTML = `
+        <div class="friends-empty">
+            <div class="friends-empty-icon">⏳</div>
+            <h2>Chargement...</h2>
+        </div>
+    `;
+
+    try {
+
+        const {
+            data: { user },
+            error: userError
+        } = await supabaseClient.auth.getUser();
+
+        if (userError || !user) {
+            throw new Error(
+                "Utilisateur Supabase introuvable"
+            );
+        }
+
+
+        const {
+            data: relations,
+            error
+        } = await supabaseClient
+            .from("friend_requests")
+            .select(`
+                id,
+                sender_id,
+                receiver_id,
+                status
+            `)
+            .eq("status", "accepted")
+            .or(
+                `sender_id.eq.${user.id},receiver_id.eq.${user.id}`
+            );
+
+
+        if (error) throw error;
+
+
+        if (!relations || relations.length === 0) {
+
+            showEmptyFriendsList();
+
+            return;
+
+        }
+
+
+        const friendIds =
+            relations.map(relation => {
+
+                return relation.sender_id === user.id
+                    ? relation.receiver_id
+                    : relation.sender_id;
+
+            });
+
+
+        const uniqueFriendIds =
+            [...new Set(friendIds)];
+
+
+        const {
+            data: friends,
+            error: friendsError
+        } = await supabaseClient
+            .from("players")
+            .select(`
+                id,
+                username,
+                trophies,
+                level
+            `)
+            .in("id", uniqueFriendIds);
+
+
+        if (friendsError) {
+            throw friendsError;
+        }
+
+
+        if (!friends || friends.length === 0) {
+
+            showEmptyFriendsList();
+
+            return;
+
+        }
+
+
+        friends.sort(
+            (a, b) =>
+                (Number(b.trophies) || 0) -
+                (Number(a.trophies) || 0)
+        );
+
+
+        list.innerHTML = friends.map(friend => {
+
+            const username =
+                friend.username || "Joueur";
+
+            const trophies =
+                Number(friend.trophies) || 0;
+
+            const level =
+                Number(friend.level) || 1;
+
+
+            return `
+                <div
+                    class="friend-card"
+                    data-friend-id="${friend.id}"
+                >
+
+                    <div class="friend-card-player">
+
+                        <div class="friend-card-avatar">
+                            👤
+                        </div>
+
+                        <div class="friend-card-info">
+
+                            <strong>
+                                ${escapeFriendHtml(username)}
+                            </strong>
+
+                            <span>
+                                Niveau ${level}
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="friend-card-trophies">
+                        🏆 ${trophies}
+                    </div>
+
+                </div>
+            `;
+
+        }).join("");
+
+
+        /* Clic sur un ami */
+
+        list
+            .querySelectorAll(".friend-card")
+            .forEach(card => {
+
+                card.addEventListener(
+                    "click",
+                    () => {
+
+                        openFriendProfile(
+                            card.dataset.friendId
+                        );
+
+                    }
+                );
+
+            });
+
+
+    } catch (error) {
+
+        console.error(
+            "Erreur chargement amis :",
+            error
+        );
+
+
+        list.innerHTML = `
+            <div class="friends-empty">
+
+                <div class="friends-empty-icon">
+                    ⚠️
+                </div>
+
+                <h2>
+                    Impossible de charger tes amis
+                </h2>
+
+                <p>
+                    Réessaie dans quelques instants.
+                </p>
+
+            </div>
+        `;
+
+    }
+}
+/* ============================================================
+   👤 PROFIL D'UN AMI
+   ============================================================ */
+
+async function openFriendProfile(friendId) {
+
+    if (!friendId) return;
+
+
+    let overlay =
+        document.getElementById(
+            "friend-profile-overlay"
+        );
+
+
+    if (!overlay) {
+
+        overlay =
+            document.createElement("div");
+
+        overlay.id =
+            "friend-profile-overlay";
+
+        overlay.className =
+            "friend-profile-hidden";
+
+        document.body.appendChild(
+            overlay
+        );
+
+    }
+
+
+    overlay.innerHTML = `
+        <div class="friend-profile-screen">
+
+            <button
+                type="button"
+                class="friend-profile-close"
+                id="friend-profile-close"
+            >
+                ×
+            </button>
+
+            <div
+                id="friend-profile-content"
+                class="friend-profile-content"
+            >
+
+                <div class="friends-empty">
+
+                    <div class="friends-empty-icon">
+                        ⏳
+                    </div>
+
+                    <h2>
+                        Chargement...
+                    </h2>
+
+                </div>
+
+            </div>
+
+        </div>
+    `;
+
+
+    overlay.classList.remove(
+        "friend-profile-hidden"
+    );
+
+
+    document
+        .getElementById(
+            "friend-profile-close"
+        )
+        .addEventListener(
+            "click",
+            closeFriendProfile
+        );
+
+
+    try {
+
+        const {
+            data: friend,
+            error
+        } = await supabaseClient
+            .from("players")
+            .select(`
+                id,
+                username,
+                trophies,
+                level,
+                xp
+            `)
+            .eq(
+                "id",
+                friendId
+            )
+            .maybeSingle();
+
+
+        if (error) throw error;
+
+
+        if (!friend) {
+
+            throw new Error(
+                "Joueur introuvable"
+            );
+
+        }
+
+
+        const username =
+            friend.username || "Joueur";
+
+        const trophies =
+            Number(friend.trophies) || 0;
+
+        const level =
+            Number(friend.level) || 1;
+
+        const xp =
+            Number(friend.xp) || 0;
+
+
+        document
+            .getElementById(
+                "friend-profile-content"
+            )
+            .innerHTML = `
+
+                <div class="friend-profile-avatar">
+                    👤
+                </div>
+
+                <p class="friend-profile-kicker">
+                    PROFIL JOUEUR
+                </p>
+
+                <h1 class="friend-profile-name">
+                    ${escapeFriendHtml(username)}
+                </h1>
+
+                <div class="friend-profile-stats">
+
+                    <div class="friend-profile-stat">
+
+                        <span class="friend-profile-stat-icon">
+                            🏆
+                        </span>
+
+                        <strong>
+                            ${trophies}
+                        </strong>
+
+                        <small>
+                            Trophées
+                        </small>
+
+                    </div>
+
+
+                    <div class="friend-profile-stat">
+
+                        <span class="friend-profile-stat-icon">
+                            ⭐
+                        </span>
+
+                        <strong>
+                            ${level}
+                        </strong>
+
+                        <small>
+                            Niveau
+                        </small>
+
+                    </div>
+
+
+                    <div class="friend-profile-stat">
+
+                        <span class="friend-profile-stat-icon">
+                            ✨
+                        </span>
+
+                        <strong>
+                            ${xp}
+                        </strong>
+
+                        <small>
+                            XP
+                        </small>
+
+                    </div>
+
+                </div>
+
+            `;
+
+
+    } catch (error) {
+
+        console.error(
+            "Erreur profil ami :",
+            error
+        );
+
+
+        document
+            .getElementById(
+                "friend-profile-content"
+            )
+            .innerHTML = `
+
+                <div class="friends-empty">
+
+                    <div class="friends-empty-icon">
+                        ⚠️
+                    </div>
+
+                    <h2>
+                        Profil introuvable
+                    </h2>
+
+                    <p>
+                        Impossible de charger ce joueur.
+                    </p>
+
+                </div>
+
+            `;
+
+    }
+
+}
+
+
+function closeFriendProfile() {
+
+    const overlay =
+        document.getElementById(
+            "friend-profile-overlay"
+        );
+
+
+    if (!overlay) return;
+
+
+    overlay.classList.add(
+        "friend-profile-hidden"
+    );
+
+}
+
+function showEmptyFriendsList() {
+
+    const list =
+        document.getElementById(
+            "friends-list"
+        );
+
+
+    if (!list) return;
+
+
+    list.innerHTML = `
+
+        <div class="friends-empty">
+
+            <div class="friends-empty-icon">
+                👥
+            </div>
+
+            <h2>
+                Aucun ami pour le moment
+            </h2>
+
+            <p>
+                Ajoute ton premier ami avec son pseudo.
+            </p>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ============================================================
+   ENVOYER UNE DEMANDE
    ============================================================ */
 
 async function sendFriendRequestUI() {
 
-    const input = document.getElementById(
-        "friends-username-input"
-    );
+    const input =
+        document.getElementById(
+            "friends-username-input"
+        );
 
-    const message = document.getElementById(
-        "friends-add-message"
-    );
 
-    if (!input || !message) return;
+    const message =
+        document.getElementById(
+            "friends-add-message"
+        );
 
-    const username = input.value.trim();
+
+    if (
+        !input ||
+        !message
+    ) return;
+
+
+    const username =
+        input.value.trim();
+
 
     if (!username) {
-        message.textContent = "⚠️ Entre un pseudo.";
+
+        message.textContent =
+            "⚠️ Entre un pseudo.";
+
         return;
+
     }
 
-    if (username.length < 2) {
-        message.textContent = "⚠️ Le pseudo est trop court.";
+
+    if (
+        username.length < 2
+    ) {
+
+        message.textContent =
+            "⚠️ Le pseudo est trop court.";
+
         return;
+
     }
+
 
     const currentUsername =
         typeof getPlayerName === "function"
             ? getPlayerName()
             : "";
 
+
     if (
         currentUsername &&
-        username.toLowerCase() === currentUsername.toLowerCase()
+        username.toLowerCase() ===
+        currentUsername.toLowerCase()
     ) {
+
         message.textContent =
             "⚠️ Tu ne peux pas t'ajouter toi-même.";
+
         return;
+
     }
 
-    message.textContent = "⏳ Recherche du joueur...";
+
+    message.textContent =
+        "⏳ Recherche du joueur...";
+
 
     try {
 
-        /* Cherche le joueur grâce à son pseudo */
-        const { data: targetPlayer, error: searchError } =
+        const {
+            data: targetPlayer,
+            error: searchError
+        } =
             await supabaseClient
                 .from("players")
-                .select("id, username")
-                .ilike("username", username)
+                .select(
+                    "id, username"
+                )
+                .ilike(
+                    "username",
+                    username
+                )
                 .maybeSingle();
 
+
         if (searchError) {
+
             console.error(
                 "Erreur recherche joueur :",
                 searchError
             );
 
+
             message.textContent =
                 "❌ Impossible de rechercher ce joueur.";
 
             return;
+
         }
+
 
         if (!targetPlayer) {
 
@@ -1523,70 +2181,99 @@ async function sendFriendRequestUI() {
                 "❌ Joueur introuvable.";
 
             return;
+
         }
 
-        /* Récupération de notre propre UUID */
+
         const {
             data: { user },
             error: userError
-        } = await supabaseClient.auth.getUser();
+        } =
+            await supabaseClient.auth.getUser();
 
-        if (userError || !user) {
+
+        if (
+            userError ||
+            !user
+        ) {
 
             message.textContent =
                 "❌ Connexion Supabase introuvable.";
 
             return;
+
         }
 
-        if (targetPlayer.id === user.id) {
+
+        if (
+            targetPlayer.id ===
+            user.id
+        ) {
 
             message.textContent =
                 "⚠️ Tu ne peux pas t'ajouter toi-même.";
 
             return;
+
         }
 
-        /* Vérifie si une relation existe déjà */
-        const { data: existingRequest, error: existingError } =
+
+        const {
+            data: existingRequest,
+            error: existingError
+        } =
             await supabaseClient
                 .from("friend_requests")
-                .select("id, status, sender_id, receiver_id")
+                .select(
+                    "id, status, sender_id, receiver_id"
+                )
                 .or(
                     `and(sender_id.eq.${user.id},receiver_id.eq.${targetPlayer.id}),and(sender_id.eq.${targetPlayer.id},receiver_id.eq.${user.id})`
                 )
                 .maybeSingle();
 
+
         if (existingError) {
+
             console.error(
                 "Erreur vérification demande :",
                 existingError
             );
 
+
             message.textContent =
                 "❌ Impossible de vérifier cette demande.";
 
             return;
+
         }
+
 
         if (existingRequest) {
 
-            if (existingRequest.status === "accepted") {
+            if (
+                existingRequest.status ===
+                "accepted"
+            ) {
 
                 message.textContent =
                     "👥 Ce joueur est déjà dans tes amis.";
 
             } else if (
-                existingRequest.sender_id === user.id &&
-                existingRequest.status === "pending"
+                existingRequest.sender_id ===
+                    user.id &&
+                existingRequest.status ===
+                    "pending"
             ) {
 
                 message.textContent =
                     "⏳ Une demande est déjà en attente.";
 
             } else if (
-                existingRequest.receiver_id === user.id &&
-                existingRequest.status === "pending"
+                existingRequest.receiver_id ===
+                    user.id &&
+                existingRequest.status ===
+                    "pending"
             ) {
 
                 message.textContent =
@@ -1596,20 +2283,33 @@ async function sendFriendRequestUI() {
 
                 message.textContent =
                     "⚠️ Une relation existe déjà avec ce joueur.";
+
             }
 
+
             return;
+
         }
 
-        /* Création de la demande */
-        const { error: insertError } =
+
+        const {
+            error: insertError
+        } =
             await supabaseClient
                 .from("friend_requests")
                 .insert({
-                    sender_id: user.id,
-                    receiver_id: targetPlayer.id,
-                    status: "pending"
+
+                    sender_id:
+                        user.id,
+
+                    receiver_id:
+                        targetPlayer.id,
+
+                    status:
+                        "pending"
+
                 });
+
 
         if (insertError) {
 
@@ -1618,16 +2318,21 @@ async function sendFriendRequestUI() {
                 insertError
             );
 
+
             message.textContent =
                 "❌ Impossible d'envoyer la demande.";
 
             return;
+
         }
+
 
         message.textContent =
             `✅ Demande envoyée à ${targetPlayer.username} !`;
 
+
         input.value = "";
+
 
     } catch (error) {
 
@@ -1636,9 +2341,431 @@ async function sendFriendRequestUI() {
             error
         );
 
+
         message.textContent =
             "❌ Une erreur est survenue.";
+
     }
+
+}
+
+
+/* ============================================================
+   DEMANDES REÇUES
+   ============================================================ */
+
+async function loadFriendRequests() {
+
+    const list =
+        document.getElementById(
+            "friends-list"
+        );
+
+
+    const count =
+        document.getElementById(
+            "friends-request-count"
+        );
+
+
+    if (
+        !list ||
+        !count
+    ) return;
+
+
+    list.innerHTML = `
+
+        <div class="friends-empty">
+
+            <div class="friends-empty-icon">
+                ⏳
+            </div>
+
+            <h2>
+                Chargement...
+            </h2>
+
+        </div>
+
+    `;
+
+
+    try {
+
+        const {
+            data: { user },
+            error: userError
+        } =
+            await supabaseClient.auth.getUser();
+
+
+        if (
+            userError ||
+            !user
+        ) {
+
+            throw new Error(
+                "Utilisateur Supabase introuvable"
+            );
+
+        }
+
+
+        const {
+            data: requests,
+            error
+        } =
+            await supabaseClient
+                .from("friend_requests")
+                .select(`
+                    id,
+                    sender_id,
+                    status,
+                    created_at
+                `)
+                .eq(
+                    "receiver_id",
+                    user.id
+                )
+                .eq(
+                    "status",
+                    "pending"
+                )
+                .order(
+                    "created_at",
+                    {
+                        ascending: false
+                    }
+                );
+
+
+        if (error) throw error;
+
+
+        count.textContent =
+            requests?.length || 0;
+
+
+        if (
+            !requests ||
+            requests.length === 0
+        ) {
+
+            list.innerHTML = `
+
+                <div class="friends-empty">
+
+                    <div class="friends-empty-icon">
+                        🔔
+                    </div>
+
+                    <h2>
+                        Aucune demande
+                    </h2>
+
+                    <p>
+                        Les demandes d'amis reçues apparaîtront ici.
+                    </p>
+
+                </div>
+
+            `;
+
+            return;
+
+        }
+
+
+        const senderIds =
+            requests.map(
+                request =>
+                    request.sender_id
+            );
+
+
+        const {
+            data: senders,
+            error: sendersError
+        } =
+            await supabaseClient
+                .from("players")
+                .select(
+                    "id, username"
+                )
+                .in(
+                    "id",
+                    senderIds
+                );
+
+
+        if (sendersError) {
+
+            throw sendersError;
+
+        }
+
+
+        const senderMap =
+            new Map(
+                (senders || []).map(
+                    player => [
+                        player.id,
+                        player.username
+                    ]
+                )
+            );
+
+
+        list.innerHTML =
+            requests.map(
+                request => {
+
+                    const username =
+                        senderMap.get(
+                            request.sender_id
+                        ) ||
+                        "Joueur inconnu";
+
+
+                    return `
+
+                        <div
+                            class="friend-request-card"
+                        >
+
+                            <div
+                                class="friend-request-player"
+                            >
+
+                                <div
+                                    class="friend-request-avatar"
+                                >
+                                    👤
+                                </div>
+
+
+                                <div>
+
+                                    <strong>
+                                        ${escapeFriendHtml(username)}
+                                    </strong>
+
+                                    <small>
+                                        Demande d'ami
+                                    </small>
+
+                                </div>
+
+                            </div>
+
+
+                            <div
+                                class="friend-request-actions"
+                            >
+
+                                <button
+                                    type="button"
+                                    class="friend-accept-btn"
+                                    data-request-id="${request.id}"
+                                >
+                                    ✓ Accepter
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    class="friend-reject-btn"
+                                    data-request-id="${request.id}"
+                                >
+                                    ✕ Refuser
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    `;
+
+                }
+            ).join("");
+
+
+        list
+            .querySelectorAll(
+                ".friend-accept-btn"
+            )
+            .forEach(
+                button => {
+
+                    button.addEventListener(
+                        "click",
+                        () =>
+                            respondToFriendRequest(
+                                button.dataset.requestId,
+                                "accepted"
+                            )
+                    );
+
+                }
+            );
+
+
+        list
+            .querySelectorAll(
+                ".friend-reject-btn"
+            )
+            .forEach(
+                button => {
+
+                    button.addEventListener(
+                        "click",
+                        () =>
+                            respondToFriendRequest(
+                                button.dataset.requestId,
+                                "rejected"
+                            )
+                    );
+
+                }
+            );
+
+
+    } catch (error) {
+
+        console.error(
+            "Erreur chargement demandes :",
+            error
+        );
+
+
+        list.innerHTML = `
+
+            <div class="friends-empty">
+
+                <div class="friends-empty-icon">
+                    ⚠️
+                </div>
+
+                <h2>
+                    Impossible de charger les demandes
+                </h2>
+
+                <p>
+                    Réessaie dans quelques instants.
+                </p>
+
+            </div>
+
+        `;
+
+    }
+
+}
+
+
+/* ============================================================
+   ACCEPTER / REFUSER
+   ============================================================ */
+
+async function respondToFriendRequest(
+    requestId,
+    status
+) {
+
+    try {
+
+        const {
+            data: { user },
+            error: userError
+        } =
+            await supabaseClient.auth.getUser();
+
+
+        if (
+            userError ||
+            !user
+        ) {
+
+            throw new Error(
+                "Utilisateur Supabase introuvable"
+            );
+
+        }
+
+
+        const {
+            error
+        } =
+            await supabaseClient
+                .from("friend_requests")
+                .update({
+                    status: status
+                })
+                .eq(
+                    "id",
+                    requestId
+                )
+                .eq(
+                    "receiver_id",
+                    user.id
+                )
+                .eq(
+                    "status",
+                    "pending"
+                );
+
+
+        if (error) throw error;
+
+
+        await loadFriendRequests();
+
+    } catch (error) {
+
+        console.error(
+            "Erreur réponse demande :",
+            error
+        );
+
+
+        alert(
+            "Impossible de traiter cette demande."
+        );
+
+    }
+
+}
+
+
+/* ============================================================
+   SÉCURITÉ HTML
+   ============================================================ */
+
+function escapeFriendHtml(value) {
+
+    return String(value)
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+
 }
 
 
@@ -1649,13 +2776,16 @@ async function sendFriendRequestUI() {
 function initFriendsSystem() {
 
     createFriendsButton();
+
     createFriendsOverlay();
 
 }
 
 
-/* On attend que le menu soit disponible */
-if (document.readyState === "loading") {
+if (
+    document.readyState ===
+    "loading"
+) {
 
     document.addEventListener(
         "DOMContentLoaded",

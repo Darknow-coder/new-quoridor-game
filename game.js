@@ -1425,34 +1425,26 @@ function pentMetrics() {
   return { cell, gap, step: cell + gap };
 }
 
-function classicMetrics() {
-  // Le mode classique doit lui aussi être réellement responsive.
-  // On réserve une petite marge latérale pour le conteneur mobile et les
-  // paddings du plateau, afin que les 9 cases restent toujours entièrement
-  // visibles.
-  const available = Math.max(240, Math.min(window.innerWidth - 76, 440));
-  const gap = Math.max(4, Math.min(CONFIG.WALL_GAP, available * 0.022));
-  const cell = (available - 8 * gap) / 9;
-  return { cell, gap, step: cell + gap };
-}
-
 function stepSize() {
-  return isPentagonMode() ? pentMetrics().step : classicMetrics().step;
+  return isPentagonMode() ? pentMetrics().step : CONFIG.CELL_SIZE + CONFIG.WALL_GAP;
 }
 
 function cellPixelPos(r, c) {
-  const m = isPentagonMode() ? pentMetrics() : classicMetrics();
+  const m = isPentagonMode() ? pentMetrics() : { cell: CONFIG.CELL_SIZE, step: stepSize() };
   const offset = isPentagonMode() ? (m.step - m.cell) / 2 : 0;
   return { x: c * m.step + offset, y: r * m.step + offset };
 }
 
 function boardPixelSize() {
-  const m = isPentagonMode() ? pentMetrics() : classicMetrics();
-  return N * m.cell + (N - 1) * m.gap;
+  if (isPentagonMode()) {
+    const m = pentMetrics();
+    return N * m.cell + (N - 1) * m.gap;
+  }
+  return N * CONFIG.CELL_SIZE + (N - 1) * CONFIG.WALL_GAP;
 }
 
 function wallPixelRect(i, j, orientation) {
-  const m = isPentagonMode() ? pentMetrics() : classicMetrics();
+  const m = isPentagonMode() ? pentMetrics() : { cell: CONFIG.CELL_SIZE, gap: CONFIG.WALL_GAP, step: stepSize() };
   const step = m.step, gap = m.gap, cell = m.cell;
   if (orientation === 'H') {
     return { x: j * step + (isPentagonMode() ? (step-cell)/2 : 0), y: (i + 1) * step - gap, width: 2 * cell + gap, height: gap };
@@ -1461,7 +1453,7 @@ function wallPixelRect(i, j, orientation) {
 }
 
 function jointHitboxRect(i, j) {
-  const m = isPentagonMode() ? pentMetrics() : classicMetrics();
+  const m = isPentagonMode() ? pentMetrics() : { gap: CONFIG.WALL_GAP, step: stepSize() };
   const gap = m.gap, step = m.step, HIT = Math.max(gap + 14, 22);
   const centerX = (j + 1) * step - gap / 2;
   const centerY = (i + 1) * step - gap / 2;
@@ -1850,14 +1842,35 @@ let audioEnabled = true;
 let audioVolume = 0.65;
 const audioBank = {};
 const AUDIO_FILES = {click:'sounds/click.wav',move:'sounds/move.wav',wall:'sounds/wall.wav',turn:'sounds/turn.wav',card:'sounds/card.wav',pack:'sounds/pack.wav',win:'sounds/win.wav',lose:'sounds/lose.wav',test:'sounds/test.wav'};
-function loadAudioSettings(){try{const raw=JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}');audioEnabled=raw.enabled!==false;audioVolume=Number.isFinite(raw.volume)?Math.max(0,Math.min(1,raw.volume)):0.65;}catch(_){}}
+const MENU_MUSIC_FILE = 'sounds/menu_music_v2.wav';
+let menuMusic = null;
+let musicUnlocked = false;
+
+function loadAudioSettings(){try{const raw=JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}');audioEnabled=raw.enabled!==false;audioVolume=Number.isFinite(raw.volume)?Math.max(0,Math.min(1,raw.volume)):0.65;}catch(_){} }
 function saveAudioSettings(){try{localStorage.setItem(AUDIO_KEY,JSON.stringify({enabled:audioEnabled,volume:audioVolume}));}catch(_) {}}
-function preloadAudio(){Object.entries(AUDIO_FILES).forEach(([name,src])=>{const a=new Audio(src);a.preload='auto';a.volume=audioVolume;audioBank[name]=a;});}
+function preloadAudio(){Object.entries(AUDIO_FILES).forEach(([name,src])=>{const a=new Audio(src);a.preload='auto';a.volume=audioVolume;audioBank[name]=a;});
+  menuMusic = new Audio(MENU_MUSIC_FILE);
+  menuMusic.preload = 'auto';
+  menuMusic.loop = true;
+  menuMusic.volume = audioVolume;
+}
 function playSound(name){if(!audioEnabled)return;const base=audioBank[name];if(!base)return;try{const a=base.cloneNode(true);a.volume=audioVolume;a.currentTime=0;const p=a.play();if(p&&p.catch)p.catch(()=>{});}catch(_) {}}
+function playMenuMusic(){
+  if(!audioEnabled || !musicUnlocked || !menuMusic) return;
+  try { menuMusic.volume=audioVolume; const p=menuMusic.play(); if(p&&p.catch)p.catch(()=>{}); } catch(_) {}
+}
+function stopMenuMusic(){
+  if(!menuMusic) return;
+  try { menuMusic.pause(); menuMusic.currentTime=0; } catch(_) {}
+}
+function unlockAudio(){
+  musicUnlocked = true;
+  if (document.getElementById('main-menu') && !document.getElementById('main-menu').classList.contains('hidden')) playMenuMusic();
+}
 function testAudio(){if(!audioEnabled){audioEnabled=true;saveAudioSettings();updateAudioControls();}playSound('test');}
 function updateAudioControls(){const toggle=document.getElementById('audio-toggle'),slider=document.getElementById('audio-volume'),label=document.getElementById('audio-volume-label');if(toggle){toggle.textContent=audioEnabled?'🔊 Sons activés':'🔇 Sons désactivés';toggle.classList.toggle('selected',audioEnabled);}if(slider)slider.value=Math.round(audioVolume*100);if(label)label.textContent=Math.round(audioVolume*100)+'%';}
-function toggleAudio(){audioEnabled=!audioEnabled;saveAudioSettings();updateAudioControls();if(audioEnabled)playSound('click');}
-function setAudioVolume(v){audioVolume=Math.max(0,Math.min(1,Number(v)/100));saveAudioSettings();Object.values(audioBank).forEach(a=>a.volume=audioVolume);updateAudioControls();}
+function toggleAudio(){audioEnabled=!audioEnabled;saveAudioSettings();updateAudioControls();if(audioEnabled){playSound('click');playMenuMusic();}else{stopMenuMusic();}}
+function setAudioVolume(v){audioVolume=Math.max(0,Math.min(1,Number(v)/100));saveAudioSettings();Object.values(audioBank).forEach(a=>a.volume=audioVolume);if(menuMusic)menuMusic.volume=audioVolume;updateAudioControls();}
 loadAudioSettings();
 preloadAudio();
 
@@ -2744,7 +2757,7 @@ function emitCosmeticEffect(type, player){
   const board = boardEl();
   if (!board) return;
   const boardRect = board.getBoundingClientRect();
-  const fxCellSize = isPentagonMode() ? pentMetrics().cell : classicMetrics().cell;
+  const fxCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
   const fxPawnSize = fxCellSize * 0.72;
   const fxMargin = (fxCellSize - fxPawnSize) / 2;
   const { x: fxCellX, y: fxCellY } = cellPixelPos(player.row, player.col);
@@ -2923,10 +2936,12 @@ function showScreen(screen) {
   const menu = document.getElementById('main-menu');
   const app = document.getElementById('app');
   if (screen === 'game') {
+    stopMenuMusic();
     menu.classList.add('hidden'); app.classList.remove('hidden');
   } else {
     app.classList.add('hidden'); menu.classList.remove('hidden');
     updateMenuDisplays();
+    playMenuMusic();
   }
 }
 
@@ -3119,7 +3134,10 @@ function buildBoardDOM() {
       const cell = document.createElement('div');
       cell.className = 'cell' + ((r + c) % 2 === 1 ? ' cell-alt' : '') + (!isPlayableCell(r, c) ? ' cell-outside' : '');
       cell.style.left = x + 'px'; cell.style.top = y + 'px';
-      const cellSize = isPentagonMode() ? pentMetrics().cell : classicMetrics().cell;
+      // En mode pentagone, la taille des cases doit suivre exactement
+      // pentMetrics().cell. Utiliser CONFIG.CELL_SIZE ici faisait dépasser
+      // les cases du plateau et cassait le redimensionnement mobile.
+      const cellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
       cell.style.width = cellSize + 'px'; cell.style.height = cellSize + 'px';
       cell.dataset.row = r; cell.dataset.col = c;
       if (isPlayableCell(r, c)) cell.addEventListener('click', () => onCellClick(r, c));
@@ -3196,7 +3214,7 @@ function renderPawns() {
     let pawnEl = document.getElementById('pawn-' + player.id);
     if (!pawnEl) {
       pawnEl = document.createElement('div'); pawnEl.id = 'pawn-' + player.id; pawnEl.className = 'pawn';
-      const pawnCellSize = isPentagonMode() ? pentMetrics().cell : classicMetrics().cell;
+      const pawnCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
       const pawnSize = pawnCellSize * 0.72;
       pawnEl.style.width = pawnSize + 'px'; pawnEl.style.height = pawnSize + 'px';
       boardEl().appendChild(pawnEl);
@@ -3224,7 +3242,7 @@ function renderPawns() {
     }
 
     const { x, y } = cellPixelPos(player.row, player.col);
-    const pawnCellSize = isPentagonMode() ? pentMetrics().cell : classicMetrics().cell;
+    const pawnCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
     const margin = (pawnCellSize - pawnCellSize * 0.72) / 2;
     const nextLeft = x + margin;
     const nextTop = y + margin;
@@ -3760,6 +3778,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ];
   let lastPct=-1;
   const setLoading=(p,label,statusText,tipText)=>{p=Math.max(0,Math.min(100,Math.round(p)));if(p!==lastPct){if(progress)progress.style.width=p+'%';if(percent)percent.textContent=p+'%';lastPct=p;}if(stageLabel)stageLabel.textContent=label;if(status)status.textContent=statusText;if(tip)tip.textContent=tipText;};
+  document.addEventListener('pointerdown', unlockAudio, {passive:true, once:true});
   document.addEventListener('click',(e)=>{if(e.target.closest('button')&&!e.target.closest('.audio-toggle-btn'))playSound('click');},{passive:true});
 
   // Prépare immédiatement le jeu derrière le splash. Le splash est une vraie

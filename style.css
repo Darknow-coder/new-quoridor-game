@@ -662,17 +662,20 @@ html, body {
    chaque côté possède donc exactement la même longueur. */
 #board-frame.mode-5 {
   display: block;
-  width: min(92vw, 430px);
-  height: min(92vw, 430px);
+  width: min(88vw, 422px);
+  height: min(88vw, 422px);
   margin: 6px auto 20px;
   position: relative;
+  box-sizing: border-box;
+  max-width: 100%;
+  max-height: 100%;
   filter: none;
 }
 
 #board-frame.mode-5 #board {
   position: absolute;
-  left: 4px;
-  top: 4px;
+  left: 0;
+  top: 0;
   padding: 0;
   border-radius: 0;
   background: var(--wall-color);
@@ -762,7 +765,7 @@ html, body {
 }
 
 @media (max-width: 430px) {
-  #board-frame.mode-5 { width: 88vw; height: 88vw; }
+  #board-frame.mode-5 { width: min(88vw, 422px); height: min(88vw, 422px); }
   #board-frame.mode-5 #board { left: 0; top: 0; }
   .pent-goal { height: 11px; font-size: 7px; }
   .pent-goal-label { font-size: .61rem; }
@@ -3455,26 +3458,81 @@ body:not(.loading-active) #main-menu{visibility:visible!important;opacity:1!impo
     }
 
 }
-
 /* ============================================================
-   CORRECTION MOBILE — PLATEAU CLASSIQUE
-   Le cadre possède 4 barres d'objectif autour du plateau.
-   On laisse donc au plateau une largeur suffisante pour que l'ensemble
-   reste dans la largeur du téléphone. Le mode 5 est géré séparément.
+   MOBILE — PLATEAU TOUJOURS ENTIER À L'ÉCRAN
+   Fix responsive ajouté sans modifier la logique du jeu.
    ============================================================ */
-@media (max-width: 600px) {
-  #board-wrapper {
+#board-wrapper {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 4px 0;
+}
+
+#board-frame {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 560px) {
+  #app {
     width: 100%;
     max-width: 100%;
-    overflow: visible;
-    padding: 2px 0;
+    box-sizing: border-box;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 
+  #board-wrapper {
+    width: 100%;
+    padding: 2px 0 8px;
+  }
+
+  /* Le plateau classique est dimensionné par son contenu :
+     on le réduit visuellement si l'écran est trop petit. */
   #board-frame:not(.mode-5) {
-    max-width: 100%;
+    transform-origin: top center;
   }
 
   #board-frame:not(.mode-5) #board {
-    max-width: 100%;
+    max-width: calc(100vw - 28px);
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 430px) {
+  #board-wrapper {
+    overflow: hidden;
+  }
+
+  #board-frame:not(.mode-5) {
+    /* Évite qu'un plateau large déborde horizontalement sur les petits écrans. */
+    transform: scale(min(1, calc((100vw - 24px) / 430)));
+    transform-origin: top center;
+    margin-bottom: calc((1 - min(1, calc((100vw - 24px) / 430))) * -1px);
+  }
+
+  #board-frame.mode-5 {
+    width: min(88vw, 430px);
+    height: min(88vw, 430px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vw - 16px);
+  }
+}
+
+@media (max-width: 360px) {
+  #app {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  #board-frame:not(.mode-5) #board {
+    max-width: calc(100vw - 18px);
+  }
+
+  #board-frame.mode-5 {
+    width: 86vw;
+    height: 86vw;
   }
 }
