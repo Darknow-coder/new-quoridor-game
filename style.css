@@ -3226,3 +3226,310 @@ body:not(.loading-active) #main-menu{visibility:visible!important;opacity:1!impo
     }
 
 }
+
+/* ============================================================
+   👥 CARTES DEMANDES D'AMIS
+   ============================================================ */
+
+.friend-request-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    padding: 16px;
+    margin-bottom: 10px;
+    border-radius: 16px;
+}
+
+.friend-request-player {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.friend-request-avatar {
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 13px;
+    font-size: 22px;
+}
+
+.friend-request-player strong {
+    display: block;
+    font-size: 17px;
+}
+
+.friend-request-player small {
+    display: block;
+    margin-top: 3px;
+    opacity: .6;
+}
+
+.friend-request-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.friend-request-actions button {
+    border: 0;
+    border-radius: 11px;
+    padding: 10px 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+
+    .friend-request-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .friend-request-actions {
+        width: 100%;
+    }
+
+    .friend-request-actions button {
+        flex: 1;
+    }
+
+}
+
+/* ============================================================
+   👤 PROFIL AMI
+   ============================================================ */
+
+.friend-profile-hidden {
+    display: none !important;
+}
+
+#friend-profile-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100001;
+
+    background: var(--app-bg, #10131a);
+
+    color: var(--text-light, white);
+
+    overflow-y: auto;
+}
+
+.friend-profile-screen {
+    min-height: 100%;
+
+    box-sizing: border-box;
+
+    padding: 25px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.friend-profile-close {
+    align-self: flex-start;
+
+    width: 48px;
+    height: 48px;
+
+    border: 0;
+    border-radius: 14px;
+
+    background: var(--panel-bg, #20242e);
+    color: var(--text-light, white);
+
+    font-size: 30px;
+
+    cursor: pointer;
+}
+
+.friend-profile-content {
+    width: min(100%, 650px);
+
+    margin: auto;
+
+    text-align: center;
+}
+
+.friend-profile-avatar {
+    width: 100px;
+    height: 100px;
+
+    margin: 0 auto 20px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 30px;
+
+    background: var(--panel-bg, #20242e);
+
+    font-size: 50px;
+}
+
+.friend-profile-kicker {
+    margin: 0 0 5px;
+
+    font-size: 12px;
+    font-weight: 800;
+
+    letter-spacing: 2px;
+
+    opacity: .6;
+}
+
+.friend-profile-name {
+    margin: 0 0 30px;
+
+    font-size: clamp(
+        28px,
+        7vw,
+        48px
+    );
+
+    font-weight: 900;
+
+    overflow-wrap: anywhere;
+}
+
+.friend-profile-stats {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, 1fr);
+
+    gap: 12px;
+}
+
+.friend-profile-stat {
+    padding: 20px 10px;
+
+    border-radius: 20px;
+
+    background: var(--panel-bg, #20242e);
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.friend-profile-stat-icon {
+    font-size: 28px;
+
+    margin-bottom: 8px;
+}
+
+.friend-profile-stat strong {
+    font-size: 22px;
+}
+
+.friend-profile-stat small {
+    margin-top: 4px;
+
+    opacity: .6;
+
+    font-size: 12px;
+}
+
+@media (max-width: 600px) {
+
+    .friend-profile-screen {
+        padding: 16px;
+    }
+
+    .friend-profile-stats {
+        gap: 8px;
+    }
+
+    .friend-profile-stat {
+        padding: 16px 6px;
+    }
+
+    .friend-profile-stat strong {
+        font-size: 18px;
+    }
+
+}
+/* ============================================================
+   MOBILE — PLATEAU TOUJOURS ENTIER À L'ÉCRAN
+   Fix responsive ajouté sans modifier la logique du jeu.
+   ============================================================ */
+#board-wrapper {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 4px 0;
+}
+
+#board-frame {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 560px) {
+  #app {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  #board-wrapper {
+    width: 100%;
+    padding: 2px 0 8px;
+  }
+
+  /* Le plateau classique est dimensionné par son contenu :
+     on le réduit visuellement si l'écran est trop petit. */
+  #board-frame:not(.mode-5) {
+    transform-origin: top center;
+  }
+
+  #board-frame:not(.mode-5) #board {
+    max-width: calc(100vw - 28px);
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 430px) {
+  #board-wrapper {
+    overflow: hidden;
+  }
+
+  #board-frame:not(.mode-5) {
+    /* Évite qu'un plateau large déborde horizontalement sur les petits écrans. */
+    transform: scale(min(1, calc((100vw - 24px) / 430)));
+    transform-origin: top center;
+    margin-bottom: calc((1 - min(1, calc((100vw - 24px) / 430))) * -1px);
+  }
+
+  #board-frame.mode-5 {
+    width: min(88vw, 430px);
+    height: min(88vw, 430px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vw - 16px);
+  }
+}
+
+@media (max-width: 360px) {
+  #app {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  #board-frame:not(.mode-5) #board {
+    max-width: calc(100vw - 18px);
+  }
+
+  #board-frame.mode-5 {
+    width: 86vw;
+    height: 86vw;
+  }
+}
