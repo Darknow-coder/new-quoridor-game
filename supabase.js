@@ -659,44 +659,23 @@ window.supabaseReady = (async () => {
             return;
         }
 
-        const nav = document.querySelector(".menu-bottom-nav");
-
+        const rail = document.querySelector(".menu-side-rail-left");
         const button = document.createElement("button");
         button.id = "menu-leaderboard-btn";
-        button.className = "leaderboard-nav-btn";
+        button.className = "leaderboard-nav-btn menu-side-btn";
         button.type = "button";
+        button.title = "Classement";
         button.innerHTML = `
-            <span>🏆</span>
-            <small>Classement</small>
+            <span class="menu-side-icon" aria-hidden="true">
+                <svg viewBox="0 0 48 48"><path d="M14 8h20v9c0 9-4.8 14-10 14S14 26 14 17V8Z"/><path d="M14 13H7v4c0 6 3.2 9 8 9m19-13h7v4c0 6-3.2 9-8 9"/><path d="M24 31v7m-8 3h16"/><path d="M19 13h10m-5 0v9"/></svg>
+            </span>
+            <span>Classement</span>
         `;
 
         button.addEventListener("click", openLeaderboard);
 
-        if (nav) {
-
-            nav.classList.add("leaderboard-six");
-
-            const moreBtn = document.getElementById("menu-more-btn");
-
-            if (moreBtn) {
-                nav.insertBefore(button, moreBtn);
-            } else {
-                nav.appendChild(button);
-            }
-
-        } else {
-
-            /* Sécurité si ton menu n'utilise plus la navigation basse */
-            const grid = document.querySelector("#main-menu .menu-grid");
-
-            if (grid) {
-                button.className = "menu-card-btn";
-                button.innerHTML = `
-                    <span class="menu-card-icon">🏆</span>
-                    <span>Classement</span>
-                `;
-                grid.insertBefore(button, grid.firstChild);
-            }
+        if (rail) {
+            rail.appendChild(button);
         }
     }
 
@@ -1154,71 +1133,26 @@ function createFriendsButton() {
 
     if (document.getElementById("friends-menu-btn")) return;
 
-    const nav =
-        document.querySelector(".menu-bottom-nav");
-
-    const button =
-        document.createElement("button");
+    const rail = document.querySelector(".menu-side-rail-left");
+    const button = document.createElement("button");
 
     button.id = "friends-menu-btn";
     button.type = "button";
-    button.className = "friends-nav-btn";
+    button.className = "friends-nav-btn menu-side-btn";
+    button.title = "Amis";
 
     button.innerHTML = `
-        <span>👥</span>
-        <small>Amis</small>
+        <span class="menu-side-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48"><circle cx="18" cy="17" r="6"/><circle cx="31" cy="19" r="5"/><path d="M7 38c1-7 5.2-11 11-11s10 4 11 11"/><path d="M28 29c6.5-.3 10.8 2.7 12 8"/></svg>
+        </span>
+        <span>Amis</span>
     `;
 
-    button.addEventListener(
-        "click",
-        openFriendsPanel
-    );
+    button.addEventListener("click", openFriendsPanel);
 
-
-    if (nav) {
-
-        const moreBtn =
-            document.getElementById("menu-more-btn");
-
-        if (moreBtn) {
-
-            nav.insertBefore(
-                button,
-                moreBtn
-            );
-
-        } else {
-
-            nav.appendChild(button);
-
-        }
-
-    } else {
-
-        const grid =
-            document.querySelector(
-                "#main-menu .menu-grid"
-            );
-
-        if (grid) {
-
-            button.className =
-                "menu-card-btn";
-
-            button.innerHTML = `
-                <span class="menu-card-icon">👥</span>
-                <span>Amis</span>
-            `;
-
-            grid.insertBefore(
-                button,
-                grid.firstChild
-            );
-
-        }
-
+    if (rail) {
+        rail.appendChild(button);
     }
-
 }
 
 

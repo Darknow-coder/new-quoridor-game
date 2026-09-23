@@ -8,57 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
 </head>
-<body class="loading-active">
-
-  <!-- ==================== ÉCRAN DE CHARGEMENT ==================== -->
-  <div id="loading-screen" class="loading-screen" aria-label="Chargement du jeu" aria-busy="true" style="background:#1a0b21 !important;opacity:1 !important;visibility:visible !important;display:flex !important;position:fixed !important;inset:0 !important;z-index:2147483647 !important;">
-    <div class="loading-noise"></div>
-    <div class="loading-orbit loading-orbit-a"></div>
-    <div class="loading-orbit loading-orbit-b"></div>
-    <div class="loading-beam loading-beam-a"></div>
-    <div class="loading-beam loading-beam-b"></div>
-
-    <div class="loading-content">
-      <div class="loading-logo-shell" aria-hidden="true">
-        <div class="loading-logo-glow"></div>
-        <div class="loading-logo-ring loading-ring-one"></div>
-        <div class="loading-logo-ring loading-ring-two"></div>
-        <div class="loading-board-mark">
-          <span></span><span></span><span></span>
-          <span></span><b></b><span></span>
-          <span></span><span></span><span></span>
-        </div>
-        <div class="loading-pawn-mark"></div>
-      </div>
-
-      <div class="loading-brand">
-        <div class="loading-kicker">QUORIDOR 4</div>
-        <div class="loading-title">Préparation de la partie</div>
-        <div class="loading-subtitle" id="loading-status">Initialisation du jeu…</div>
-      </div>
-
-      <div class="loading-progress-wrap">
-        <div class="loading-progress-track">
-          <div id="loading-progress" class="loading-progress-fill"></div>
-          <div class="loading-progress-glint"></div>
-        </div>
-        <div class="loading-progress-meta">
-          <span id="loading-stage-label">Ouverture du plateau</span>
-          <strong id="loading-percent">0%</strong>
-        </div>
-      </div>
-
-      <div class="loading-tip" aria-live="polite">
-        <span class="loading-tip-dot"></span>
-        <span id="loading-tip-text">Chaque barrière peut changer complètement le chemin.</span>
-      </div>
-    </div>
-
-    <div class="loading-footer">
-      <span>SOLO • 2 À 5 JOUEURS</span>
-      <span>CHARGEMENT</span>
-    </div>
-  </div>
+<body>
 
   <!-- ==================== CRÉATION DU PROFIL ==================== -->
   <div id="profile-setup-overlay" class="profile-setup-overlay hidden" aria-hidden="true">
@@ -93,14 +43,40 @@
       </div>
     </div>
 
-    <!-- Boutique : destination importante, volontairement indépendante du reste du menu -->
-    <button id="menu-shop-btn" class="menu-corner-shop" type="button" aria-label="Ouvrir la boutique" title="Boutique">
-      <span class="menu-corner-shop-art"><img src="shop-icon.png" alt=""></span>
-      <span class="menu-corner-shop-label">BOUTIQUE</span>
-    </button>
+    <!-- Navigation latérale : accès rapides façon vrai jeu mobile -->
+    <div class="menu-side-rail menu-side-rail-left" aria-label="Navigation sociale">
+      <button id="menu-profile-btn" class="menu-side-btn menu-side-profile" type="button" title="Profil">
+        <span class="menu-side-icon menu-icon-profile" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><circle cx="24" cy="16" r="8"/><path d="M10 39c1.7-7.2 7-11 14-11s12.3 3.8 14 11"/></svg>
+        </span>
+        <span>Profil</span>
+      </button>
+      <div id="menu-social-rail-anchor" class="menu-social-rail-anchor" aria-hidden="true"></div>
+    </div>
 
-    <!-- Profil + monnaies -->
-    <button id="menu-profile-btn" class="menu-profile-hud" type="button" title="Ouvrir ton profil">
+    <div class="menu-side-rail menu-side-rail-right" aria-label="Navigation du jeu">
+      <button id="menu-shop-btn" class="menu-side-btn menu-side-shop" type="button" aria-label="Ouvrir la boutique" title="Boutique">
+        <span class="menu-side-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><path d="M9 20h30l-3 22H12L9 20Z"/><path d="M14 20v-5a10 10 0 0 1 20 0v5"/><path d="M18 25v5m12-5v5"/></svg>
+        </span>
+        <span>Boutique</span>
+      </button>
+      <button id="menu-cards-btn" class="menu-side-btn" type="button" title="Cartes">
+        <span class="menu-side-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><rect x="11" y="8" width="22" height="31" rx="4" transform="rotate(-8 11 8)"/><rect x="17" y="10" width="22" height="31" rx="4" transform="rotate(7 17 10)"/><path d="M24 20l2 4 4 .5-3 3 1 4-4-2-4 2 1-4-3-3 4-.5 2-4Z"/></svg>
+        </span>
+        <span>Cartes</span>
+      </button>
+      <button id="menu-settings-btn" class="menu-side-btn" type="button" title="Paramètres">
+        <span class="menu-side-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><path d="M20 7h8l1.4 5.1a13 13 0 0 1 3.7 2.1l5-1.4 4 6.9-3.6 3.7c.2.9.3 1.8.3 2.7s-.1 1.8-.3 2.7l3.6 3.7-4 6.9-5-1.4a13 13 0 0 1-3.7 2.1L28 41h-8l-1.4-5.1a13 13 0 0 1-3.7-2.1l-5 1.4-4-6.9 3.6-3.7A13 13 0 0 1 7.2 21l-3.6-3.7 4-6.9 5 1.4a13 13 0 0 1 3.7-2.1L20 7Z"/><circle cx="24" cy="24" r="6"/></svg>
+        </span>
+        <span>Paramètres</span>
+      </button>
+    </div>
+
+    <!-- HUD profil discret : informations conservées pour la mise à jour dynamique -->
+    <div class="menu-profile-data" aria-hidden="true">
       <span class="menu-avatar" id="menu-avatar">A</span>
       <span class="menu-profile-hud-info">
         <strong id="menu-profile-name">Aventurier</strong>
@@ -112,7 +88,7 @@
         <span>🏆 <b id="menu-trophy-count">0</b></span>
         <span>🪙 <b id="menu-coin-count">0</b></span>
       </span>
-    </button>
+    </div>
 
     <!-- Identité centrale -->
     <div class="menu-center-stage">
@@ -141,23 +117,20 @@
       <div class="menu-profile-difficulty" id="menu-profile-difficulty">🟡 Normale</div>
     </div>
 
-    <!-- Navigation basse : les systèmes principaux restent accessibles -->
-    <nav class="menu-bottom-nav" aria-label="Navigation principale">
-      <button id="menu-trophies-btn" type="button"><span>🏆</span><small>Trophées</small></button>
-      <button id="menu-cards-btn" type="button"><span>🎴</span><small>Cartes</small></button>
-      <button id="menu-achievements-btn" type="button"><span>🏅</span><small>Succès</small></button>
-      <button id="menu-quests-btn" type="button"><span>🎯</span><small>Quêtes</small></button>
-      <button id="menu-more-btn" class="menu-more-btn" type="button" aria-expanded="false"><span>•••</span><small>Plus</small></button>
-    </nav>
+    <!-- Accès secondaires : conservés, mais regroupés dans un petit menu discret -->
+    <button id="menu-more-btn" class="menu-more-fab" type="button" aria-expanded="false" aria-label="Plus d'options" title="Plus">
+      <span aria-hidden="true">•••</span>
+    </button>
 
-    <!-- Fonctions secondaires : aucun système n'est supprimé -->
     <div id="menu-more-drawer" class="menu-more-drawer hidden" aria-hidden="true">
-      <div class="menu-more-head"><strong>PLUS</strong><button id="menu-more-close" type="button" aria-label="Fermer">×</button></div>
+      <div class="menu-more-head"><strong>AUTRES</strong><button id="menu-more-close" type="button" aria-label="Fermer">×</button></div>
       <div class="menu-more-grid">
+        <button id="menu-trophies-btn" type="button"><span>🏆</span><small>Trophées</small></button>
+        <button id="menu-achievements-btn" type="button"><span>🏅</span><small>Succès</small></button>
+        <button id="menu-quests-btn" type="button"><span>🎯</span><small>Quêtes</small></button>
         <button id="menu-stats-btn" type="button"><span>📊</span><small>Statistiques</small></button>
         <button id="menu-tutorial-btn" type="button"><span>❓</span><small>Tutoriel</small></button>
         <button id="menu-level-rewards-btn" type="button"><span>⭐</span><small>Récompenses</small></button>
-        <button id="menu-settings-btn" type="button"><span>⚙️</span><small>Paramètres</small></button>
       </div>
     </div>
 

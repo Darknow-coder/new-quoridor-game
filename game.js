@@ -3761,49 +3761,23 @@ function setupEventListeners() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-  const loading = document.getElementById('loading-screen');
-  const progress = document.getElementById('loading-progress');
-  const percent = document.getElementById('loading-percent');
-  const status = document.getElementById('loading-status');
-  const stageLabel = document.getElementById('loading-stage-label');
-  const tip = document.getElementById('loading-tip-text');
-  const stages = [
-    [0,   4,  'Ouverture du plateau', 'Initialisation du jeu…', 'Chaque barrière peut changer complètement le chemin.'],
-    [650, 22, 'Préparation des cartes', 'Chargement des cartes…', 'Garde tes cartes fortes pour le bon moment.'],
-    [1350,43, 'Mise en place des joueurs', 'Création de la partie…', 'Avancer vite ne suffit pas : pense à tes adversaires.'],
-    [2050,65, 'Préparation de la boutique', 'Synchronisation des personnalisations…', 'Les cosmétiques changent le style, pas les règles.'],
-    [2750,82, 'Vérifications finales', 'Dernières vérifications…', 'Tout est presque prêt.'],
-    [3450,94, 'Finalisation', 'Encore un instant…', 'Le plateau arrive.'],
-    [4100,100,'Prêt !', 'La partie est prête.', 'À toi de jouer.']
-  ];
-  let lastPct=-1;
-  const setLoading=(p,label,statusText,tipText)=>{p=Math.max(0,Math.min(100,Math.round(p)));if(p!==lastPct){if(progress)progress.style.width=p+'%';if(percent)percent.textContent=p+'%';lastPct=p;}if(stageLabel)stageLabel.textContent=label;if(status)status.textContent=statusText;if(tip)tip.textContent=tipText;};
-  document.addEventListener('pointerdown', unlockAudio, {passive:true, once:true});
-  document.addEventListener('click',(e)=>{if(e.target.closest('button')&&!e.target.closest('.audio-toggle-btn'))playSound('click');},{passive:true});
-
-  // Prépare immédiatement le jeu derrière le splash. Le splash est une vraie
-  // séquence de lancement de 4,4 s, sans raccourci lié à reduced-motion.
-  setLoading(...stages[0].slice(1));
+  // Initialisation directe : pas d'écran de chargement bloquant.
   setupEventListeners();
   ensureStarterCards();
   updateMenuDisplays();
   showScreen('menu');
-  stages.slice(1).forEach(stage=>setTimeout(()=>setLoading(...stage.slice(1)),stage[0]));
 
-  setTimeout(()=>{
-    if(!loading)return;
-    loading.setAttribute('aria-busy','false');
-    document.body.classList.remove('loading-active');
-    loading.classList.add('is-hidden');
-    setTimeout(()=>loading.remove(),560);
+  document.addEventListener('pointerdown', unlockAudio, {passive:true, once:true});
+  document.addEventListener('click',(e)=>{
+    if(e.target.closest('button')&&!e.target.closest('.audio-toggle-btn')) playSound('click');
+  },{passive:true});
 
-    // Premier lancement : pseudo puis tutoriel obligatoire, sans passer par le menu.
-    if (!loadProfile().name) {
-      showProfileSetup();
-    } else if (!isTutorialCompleted()) {
-      startTutorial();
-    }
-  },4380);
+  // Premier lancement : pseudo puis tutoriel obligatoire, sans passer par le menu.
+  if (!loadProfile().name) {
+    showProfileSetup();
+  } else if (!isTutorialCompleted()) {
+    startTutorial();
+  }
 });
 
 (async () => {
