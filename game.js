@@ -597,27 +597,31 @@ const TROPHY_ROAD = [
 const DIFFICULTIES = {
   easy: {
     name: 'Facile', icon: '🟢',
-    description: 'Des bots plus détendus et moins agressifs.',
+    description: 'Une IA volontairement imparfaite.',
     trophiesWin: 20, trophiesLoss: 10, coinsWin: 20, coinsLoss: 5,
-    wallProbability: 0.08, moveRandomness: 0.45, wallAttempts: 10, wallRadius: 1
+    wallProbability: 0.12, moveRandomness: 0.38, wallAttempts: 18, wallRadius: 1,
+    lookAhead: 0
   },
   normal: {
     name: 'Normale', icon: '🟡',
-    description: 'Le niveau équilibré recommandé.',
+    description: 'Une IA équilibrée.',
     trophiesWin: 30, trophiesLoss: 15, coinsWin: 50, coinsLoss: 15,
-    wallProbability: 0.30, moveRandomness: 0.08, wallAttempts: 25, wallRadius: 2
+    wallProbability: 0.35, moveRandomness: 0.10, wallAttempts: 45, wallRadius: 2,
+    lookAhead: 1
   },
   hard: {
     name: 'Difficile', icon: '🔴',
-    description: 'Des bots plus précis et plus tactiques.',
+    description: 'Une IA tactique qui anticipe.',
     trophiesWin: 40, trophiesLoss: 15, coinsWin: 75, coinsLoss: 20,
-    wallProbability: 0.55, moveRandomness: 0.02, wallAttempts: 50, wallRadius: 3
+    wallProbability: 0.62, moveRandomness: 0.015, wallAttempts: 120, wallRadius: 4,
+    lookAhead: 2
   },
   expert: {
-    name: 'Expert', icon: '💀',
-    description: 'Des bots très agressifs. Bonne chance. 😭',
+    name: 'Très difficile', icon: '💀',
+    description: 'Une IA très stratégique. Bonne chance. 😭',
     trophiesWin: 50, trophiesLoss: 20, coinsWin: 100, coinsLoss: 25,
-    wallProbability: 0.72, moveRandomness: 0, wallAttempts: 90, wallRadius: 4
+    wallProbability: 0.90, moveRandomness: 0, wallAttempts: 300, wallRadius: 99,
+    lookAhead: 3
   }
 };
 
@@ -2120,16 +2124,19 @@ function checkWinAfterMove(player) {
 
 function runBotTurn(player) {
   if (state.gameOver) return;
+
   if (tutorialActive && state.tutorial) {
     player.botTurns = (player.botTurns || 0) + 1;
-    const safeMoves = getValidMoveCells(player).filter(([r,c]) => !isGoalCell(player.side,r,c));
+
+    const safeMoves = getValidMoveCells(player)
+      .filter(([r, c]) => !isGoalCell(player.side, r, c));
+
     if (safeMoves.length) {
-      const [r,c] = safeMoves[Math.floor(Math.random()*safeMoves.length)];
-      movePawn(player,r,c);
+      const [r, c] = safeMoves[Math.floor(Math.random() * safeMoves.length)];
+      movePawn(player, r, c);
       renderPawns();
     }
 
-    // Étape 3 : un seul tour adverse est montré, puis la main revient au joueur.
     if (tutorialStep === 2) {
       setTimeout(() => {
         if (state.gameOver || !tutorialActive || tutorialStep !== 2) return;
@@ -2144,12 +2151,9 @@ function runBotTurn(player) {
       return;
     }
 
-    // À partir de l'étape 5, le tutoriel devient une vraie partie classique :
-    // après chaque coup du bot, il rend la main au joueur.
     if (tutorialStep >= 4) {
       setTimeout(() => {
         if (state.gameOver || !tutorialActive || !state.tutorial) return;
-        // Le bot vient de terminer son action : retour explicite au joueur.
         tutorialBusy = false;
         uiLocked = false;
         state.cardActivationPending = false;
@@ -2164,19 +2168,78 @@ function runBotTurn(player) {
 
     return;
   }
+
   const difficulty = getDifficultyInfo();
   let actionDone = false;
   player.botTurns = (player.botTurns || 0) + 1;
 
-  // Les bots économisent leurs barrières au début et ne les dépensent que
-  // lorsqu'elles ont une vraie valeur stratégique.
+  /*
+   * Gestion intelligente des barrières :
+   * l'IA ne doit plus les gaspiller au début.
+   * Plus la partie avance ou plus un adversaire est proche
+   * de gagner, plus elle accepte d'utiliser une barrière.
+   */
   let wallProbability = difficulty.wallProbability;
-  if (player.botTurns <= 3) wallProbability *= 0.35;
-  if (player.wallsLeft <= 2) wallProbability *= 0.50;
+
+  const turnNumber = player.botTurns || 1;
+
+  const opponents = state.players.filter(p => p.id !== player.id);
+  let closestOpponentDistance = 999;
+
+  for (const opponent of opponents) {
+    const d = computeGoalDistances(opponent.side)[opponent.row][opponent.col];
+    if (Number.isFinite(d)) {
+      closestOpponentDistance = Math.min(closestOpponentDistance, d);
+    }
+  }
+
+  if (difficulty === DIFFICULTIES.expert) {
+    // Début de partie : priorité absolue à la course.
+    if (turnNumber <= 3) {
+      wallProbability *= 0.10;
+    } else if (turnNumber <= 6) {
+      wallProbability *= 0.25;
+    } else if (turnNumber <= 9) {
+      wallProbability *= 0.50;
+    }
+
+    // Une barrière devient beaucoup plus intéressante si quelqu'un
+    // est réellement proche de son objectif.
+    if (closestOpponentDistance <= 2) {
+      wallProbability = Math.max(wallProbability, 0.95);
+    } else if (closestOpponentDistance <= 4) {
+      wallProbability = Math.max(wallProbability, 0.70);
+    } else if (closestOpponentDistance <= 6) {
+      wallProbability = Math.max(wallProbability, 0.35);
+    }
+  } else if (difficulty === DIFFICULTIES.hard) {
+    if (turnNumber <= 3) {
+      wallProbability *= 0.30;
+    } else if (turnNumber <= 6) {
+      wallProbability *= 0.60;
+    }
+
+    if (closestOpponentDistance <= 3) {
+      wallProbability = Math.max(wallProbability, 0.75);
+    }
+  } else if (difficulty === DIFFICULTIES.normal) {
+    if (turnNumber <= 3) {
+      wallProbability *= 0.35;
+    }
+  } else {
+    // Facile : très peu de barrières au début.
+    if (turnNumber <= 4) {
+      wallProbability *= 0.20;
+    }
+  }
+
+  if (player.wallsLeft <= 1) wallProbability *= 0.35;
+  else if (player.wallsLeft === 2) wallProbability *= 0.65;
 
   if (player.wallsLeft > 0 && Math.random() < wallProbability) {
     actionDone = botTryPlaceBlockingWall(player, difficulty);
   }
+
   if (!actionDone) actionDone = botTryMove(player, difficulty);
   if (!actionDone) showMessage(`${player.name} passe son tour.`);
 
@@ -2186,9 +2249,9 @@ function runBotTurn(player) {
 function botTryMove(player, difficulty = getDifficultyInfo()) {
   const dist = computeGoalDistances(player.side);
   const candidates = getValidMoveCells(player);
-  if (candidates.length === 0) return false;
+  if (!candidates.length) return false;
 
-  // Facile : le bot peut volontairement prendre un déplacement non optimal.
+  // Facile : erreurs volontaires.
   if (difficulty.moveRandomness > 0 && Math.random() < difficulty.moveRandomness) {
     const [r, c] = candidates[Math.floor(Math.random() * candidates.length)];
     movePawn(player, r, c);
@@ -2200,28 +2263,65 @@ function botTryMove(player, difficulty = getDifficultyInfo()) {
     return true;
   }
 
-  candidates.sort((a, b) => dist[a[0]][a[1]] - dist[b[0]][b[1]]);
-  const bestDistance = dist[candidates[0][0]][candidates[0][1]];
-  const bestChoices = candidates.filter(([r, c]) => dist[r][c] === bestDistance);
+  const scored = candidates.map(([r, c]) => {
+    const distance = dist[r][c];
+    let score = Number.isFinite(distance) ? -distance * 100 : -100000;
 
-  // Expert privilégie aussi les coups qui conservent plusieurs options ouvertes.
-  let choice = bestChoices[Math.floor(Math.random() * bestChoices.length)];
-  if (difficulty === DIFFICULTIES.expert && bestChoices.length > 1) {
-    choice = bestChoices
-      .slice()
-      .sort((a, b) => neighborsOpen(b[0], b[1]).length - neighborsOpen(a[0], a[1]).length)[0];
+    score += neighborsOpen(r, c).length * (
+      difficulty === DIFFICULTIES.expert ? 7 :
+      difficulty === DIFFICULTIES.hard ? 4 : 2
+    );
+
+    if (isGoalCell(player.side, r, c)) score += 100000;
+
+    // Aux niveaux élevés, l'IA vérifie si un adversaire est proche de gagner.
+    if (difficulty.lookAhead >= 1) {
+      const closestOpponent = state.players
+        .filter(p => p.id !== player.id)
+        .map(p => {
+          const d = computeGoalDistances(p.side)[p.row][p.col];
+          return Number.isFinite(d) ? d : 999;
+        })
+        .reduce((best, d) => Math.min(best, d), 999);
+
+      if (closestOpponent <= 3 && Number.isFinite(distance)) {
+        score += 100 - distance * 5;
+      }
+    }
+
+    return { r, c, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  let choice;
+
+  if (difficulty === DIFFICULTIES.easy) {
+    const pool = scored.slice(0, Math.min(2, scored.length));
+    choice = pool[Math.floor(Math.random() * pool.length)];
+  } else if (difficulty === DIFFICULTIES.normal) {
+    const pool = scored.slice(0, Math.min(3, scored.length));
+    choice = pool[Math.floor(Math.random() * pool.length)];
+  } else {
+    choice = scored[0];
   }
 
   if (isChaosMode() && player.chaosBonusSteps > 1) {
     const reachable = getChaosReachableCells(player, player.chaosBonusSteps);
     if (reachable.length) {
-      reachable.sort((a,b)=>dist[a[0]][a[1]]-dist[b[0]][b[1]]); choice = reachable[0];
+      reachable.sort((a, b) => dist[a[0]][a[1]] - dist[b[0]][b[1]]);
+      choice = { r: reachable[0][0], c: reachable[0][1] };
     }
     player.chaosBonusSteps = 0;
   }
+
+  if (!choice) return false;
+
   if (player.wallPassMoves) player.wallPassMoves = 0;
-  movePawn(player, choice[0], choice[1]);
+
+  movePawn(player, choice.r, choice.c);
   renderPawns();
+
   if (checkWinAfterMove(player)) return true;
   resolveChaosCell(player);
   checkWinAfterMove(player);
@@ -2232,59 +2332,54 @@ function getBotTarget(player) {
   const opponents = state.players.filter(p => p.id !== player.id);
   if (!opponents.length) return null;
 
-  // On ne cible plus systématiquement l'humain : on regarde les adversaires
-  // réellement dangereux, puis on choisit de façon pondérée entre les meilleurs.
-  const ranked = opponents.map(opp => {
-    const d = computeGoalDistances(opp.side)[opp.row][opp.col];
-    const urgency = Number.isFinite(d) ? Math.max(0, 18 - d) : -100;
-    const repeatPenalty = player.lastWallTargetId === opp.id ? 2.5 : 0;
-    return { opp, d, score: urgency - repeatPenalty };
-  }).sort((a,b) => b.score - a.score);
+  const ranked = opponents.map(opponent => {
+    const distance = computeGoalDistances(opponent.side)[opponent.row][opponent.col];
+    let score = Number.isFinite(distance) ? 1000 - distance * 100 : -100000;
+    score += Math.max(0, 5 - (opponent.wallsLeft || 0)) * 8;
+    return { opponent, score };
+  }).sort((a, b) => b.score - a.score);
 
-  const pool = ranked.slice(0, Math.min(3, ranked.length));
-  const weights = pool.map((x, i) => Math.max(1, 5 - i * 1.5));
-  const total = weights.reduce((a,b) => a+b, 0);
-  let roll = Math.random() * total;
-  for (let i=0; i<pool.length; i++) {
-    roll -= weights[i];
-    if (roll <= 0) return pool[i].opp;
+  // Facile : cible parfois quelqu'un d'autre.
+  if (getDifficultyInfo() === DIFFICULTIES.easy && Math.random() < 0.35) {
+    return opponents[Math.floor(Math.random() * opponents.length)];
   }
-  return pool[0].opp;
+
+  return ranked[0].opponent;
 }
 
 function botTryPlaceBlockingWall(player, difficulty = getDifficultyInfo()) {
   const target = getBotTarget(player);
   if (!target) return false;
+
   player.lastWallTargetId = target.id;
 
-  const targetDistBefore = computeGoalDistances(target.side)[target.row][target.col];
-  const ownDistBefore = computeGoalDistances(player.side)[player.row][player.col];
-  const candidates = [];
-  const radius = difficulty.wallRadius;
+  const targetDistancesBefore = computeGoalDistances(target.side);
+  const ownDistancesBefore = computeGoalDistances(player.side);
 
-  // Les niveaux élevés cherchent davantage autour du pion adverse le plus dangereux.
-  // Expert élargit sa recherche pour trouver de meilleurs emplacements.
+  const targetDistBefore = targetDistancesBefore[target.row][target.col];
+  const ownDistBefore = ownDistancesBefore[player.row][player.col];
+
+  if (!Number.isFinite(targetDistBefore)) return false;
+
+  const candidates = [];
+  const radius = Math.min(N, difficulty.wallRadius);
+
   for (let i = 0; i < N - 1; i++) {
     for (let j = 0; j < N - 1; j++) {
-      if (Math.abs(i - target.row) > radius + 1 || Math.abs(j - target.col) > radius + 1) continue;
-      candidates.push([i, j, 'H']);
-      candidates.push([i, j, 'V']);
+      if (
+        difficulty.wallRadius < 99 &&
+        (Math.abs(i - target.row) > radius + 1 ||
+         Math.abs(j - target.col) > radius + 1)
+      ) continue;
+
+      candidates.push([i, j, 'H'], [i, j, 'V']);
     }
   }
 
-  // Sur Expert, complète la liste avec des positions aléatoires si nécessaire.
-  if (difficulty === DIFFICULTIES.expert) {
-    for (let k = 0; k < 25; k++) {
-      candidates.push([
-        Math.floor(Math.random() * (N - 1)),
-        Math.floor(Math.random() * (N - 1)),
-        Math.random() < 0.5 ? 'H' : 'V'
-      ]);
-    }
+  // Facile/Normal ne recherchent pas toujours dans le même ordre.
+  if (difficulty === DIFFICULTIES.easy || difficulty === DIFFICULTIES.normal) {
+    candidates.sort(() => Math.random() - 0.5);
   }
-
-  // Mélange léger pour éviter que les bots choisissent toujours le même mur en cas d'égalité.
-  candidates.sort(() => Math.random() - 0.5);
 
   let best = null;
   let bestScore = -Infinity;
@@ -2297,23 +2392,37 @@ function botTryPlaceBlockingWall(player, difficulty = getDifficultyInfo()) {
     const check = canPlaceWall(player, i, j, orientation);
     if (!check.ok) continue;
 
-    check.edges.forEach(e => state.walls.add(e));
-    const targetDistAfter = computeGoalDistances(target.side)[target.row][target.col];
-    const ownDistAfter = computeGoalDistances(player.side)[player.row][player.col];
-    check.edges.forEach(e => state.walls.delete(e));
+    check.edges.forEach(edge => state.walls.add(edge));
+
+    const targetDistAfter =
+      computeGoalDistances(target.side)[target.row][target.col];
+    const ownDistAfter =
+      computeGoalDistances(player.side)[player.row][player.col];
+
+    check.edges.forEach(edge => state.walls.delete(edge));
 
     if (!Number.isFinite(targetDistAfter)) continue;
 
     const targetGain = targetDistAfter - targetDistBefore;
     const ownCost = ownDistAfter - ownDistBefore;
 
-    // Le but est de ralentir l'adversaire sans créer un chemin catastrophique pour soi.
-    let score = targetGain * 100 - Math.max(0, ownCost) * 18;
+    let score = targetGain * 150 - Math.max(0, ownCost) * 45;
 
-    if (difficulty === DIFFICULTIES.hard) score += targetDistAfter * 0.4;
+    if (targetDistBefore <= 4) score += targetGain * 80;
+
+    if (difficulty === DIFFICULTIES.hard) {
+      score += targetDistAfter * 2;
+    }
+
     if (difficulty === DIFFICULTIES.expert) {
-      score += targetDistAfter * 0.8;
-      if (targetGain >= 2) score += 8;
+      score += targetDistAfter * 5;
+      if (targetGain >= 2) score += 30;
+      if (targetGain >= 4) score += 60;
+
+      // Si l'IA est elle-même proche de gagner, elle conserve davantage ses murs.
+      if (ownDistBefore <= 3) {
+        score -= Math.max(0, targetGain) * 20;
+      }
     }
 
     if (score > bestScore) {
@@ -2322,8 +2431,11 @@ function botTryPlaceBlockingWall(player, difficulty = getDifficultyInfo()) {
     }
   }
 
-  // Ne pose pas un mur inutile juste pour utiliser une barrière.
-  const minimumGain = difficulty === DIFFICULTIES.expert ? 1 : difficulty === DIFFICULTIES.hard ? 1 : 0.8;
+  const minimumGain =
+    difficulty === DIFFICULTIES.expert ? 2.0 :
+    difficulty === DIFFICULTIES.hard ? 1.2 :
+    difficulty === DIFFICULTIES.normal ? 0.8 : 0.5;
+
   if (!best || bestScore < minimumGain) return false;
 
   return placeWall(player, best[0], best[1], best[2]);
@@ -2999,7 +3111,11 @@ function buildBoardDOM() {
       const cell = document.createElement('div');
       cell.className = 'cell' + ((r + c) % 2 === 1 ? ' cell-alt' : '') + (!isPlayableCell(r, c) ? ' cell-outside' : '');
       cell.style.left = x + 'px'; cell.style.top = y + 'px';
-      cell.style.width = CONFIG.CELL_SIZE + 'px'; cell.style.height = CONFIG.CELL_SIZE + 'px';
+      // En mode pentagone, la taille des cases doit suivre exactement
+      // pentMetrics().cell. Utiliser CONFIG.CELL_SIZE ici faisait dépasser
+      // les cases du plateau et cassait le redimensionnement mobile.
+      const cellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
+      cell.style.width = cellSize + 'px'; cell.style.height = cellSize + 'px';
       cell.dataset.row = r; cell.dataset.col = c;
       if (isPlayableCell(r, c)) cell.addEventListener('click', () => onCellClick(r, c));
       board.appendChild(cell);
