@@ -1425,26 +1425,39 @@ function pentMetrics() {
   return { cell, gap, step: cell + gap };
 }
 
+function classicMetrics() {
+  // Le plateau classique faisait 440px CSS en permanence (9x40 + 8x10).
+  // Sur téléphone, la largeur CSS du viewport est souvent ~360px, même si
+  // la capture physique fait ~700px. Le plateau dépassait donc de l'écran.
+  // On calcule maintenant la taille réelle disponible en tenant compte des
+  // barres latérales du #board-frame.
+  const frameSideSpace = 48; // 18px + 18px + 2 gaps de 6px
+  const horizontalPadding = 24;
+  const maxBoard = N * CONFIG.CELL_SIZE + (N - 1) * CONFIG.WALL_GAP;
+  const available = Math.max(240, window.innerWidth - frameSideSpace - horizontalPadding);
+  const target = Math.min(maxBoard, available);
+  const gap = Math.max(5, Math.min(CONFIG.WALL_GAP, target * 0.0227));
+  const cell = (target - (N - 1) * gap) / N;
+  return { cell, gap, step: cell + gap };
+}
+
 function stepSize() {
-  return isPentagonMode() ? pentMetrics().step : CONFIG.CELL_SIZE + CONFIG.WALL_GAP;
+  return isPentagonMode() ? pentMetrics().step : classicMetrics().step;
 }
 
 function cellPixelPos(r, c) {
-  const m = isPentagonMode() ? pentMetrics() : { cell: CONFIG.CELL_SIZE, step: stepSize() };
+  const m = isPentagonMode() ? pentMetrics() : classicMetrics();
   const offset = isPentagonMode() ? (m.step - m.cell) / 2 : 0;
   return { x: c * m.step + offset, y: r * m.step + offset };
 }
 
 function boardPixelSize() {
-  if (isPentagonMode()) {
-    const m = pentMetrics();
-    return N * m.cell + (N - 1) * m.gap;
-  }
-  return N * CONFIG.CELL_SIZE + (N - 1) * CONFIG.WALL_GAP;
+  const m = isPentagonMode() ? pentMetrics() : classicMetrics();
+  return N * m.cell + (N - 1) * m.gap;
 }
 
 function wallPixelRect(i, j, orientation) {
-  const m = isPentagonMode() ? pentMetrics() : { cell: CONFIG.CELL_SIZE, gap: CONFIG.WALL_GAP, step: stepSize() };
+  const m = isPentagonMode() ? pentMetrics() : classicMetrics();
   const step = m.step, gap = m.gap, cell = m.cell;
   if (orientation === 'H') {
     return { x: j * step + (isPentagonMode() ? (step-cell)/2 : 0), y: (i + 1) * step - gap, width: 2 * cell + gap, height: gap };
@@ -1453,7 +1466,7 @@ function wallPixelRect(i, j, orientation) {
 }
 
 function jointHitboxRect(i, j) {
-  const m = isPentagonMode() ? pentMetrics() : { gap: CONFIG.WALL_GAP, step: stepSize() };
+  const m = isPentagonMode() ? pentMetrics() : classicMetrics();
   const gap = m.gap, step = m.step, HIT = Math.max(gap + 14, 22);
   const centerX = (j + 1) * step - gap / 2;
   const centerY = (i + 1) * step - gap / 2;
@@ -2736,7 +2749,7 @@ function emitCosmeticEffect(type, player){
   const board = boardEl();
   if (!board) return;
   const boardRect = board.getBoundingClientRect();
-  const fxCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
+  const fxCellSize = (isPentagonMode() ? pentMetrics() : classicMetrics()).cell;
   const fxPawnSize = fxCellSize * 0.72;
   const fxMargin = (fxCellSize - fxPawnSize) / 2;
   const { x: fxCellX, y: fxCellY } = cellPixelPos(player.row, player.col);
@@ -3191,7 +3204,7 @@ function renderPawns() {
     let pawnEl = document.getElementById('pawn-' + player.id);
     if (!pawnEl) {
       pawnEl = document.createElement('div'); pawnEl.id = 'pawn-' + player.id; pawnEl.className = 'pawn';
-      const pawnCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
+      const pawnCellSize = (isPentagonMode() ? pentMetrics() : classicMetrics()).cell;
       const pawnSize = pawnCellSize * 0.72;
       pawnEl.style.width = pawnSize + 'px'; pawnEl.style.height = pawnSize + 'px';
       boardEl().appendChild(pawnEl);
@@ -3219,7 +3232,7 @@ function renderPawns() {
     }
 
     const { x, y } = cellPixelPos(player.row, player.col);
-    const pawnCellSize = isPentagonMode() ? pentMetrics().cell : CONFIG.CELL_SIZE;
+    const pawnCellSize = (isPentagonMode() ? pentMetrics() : classicMetrics()).cell;
     const margin = (pawnCellSize - pawnCellSize * 0.72) / 2;
     const nextLeft = x + margin;
     const nextTop = y + margin;
